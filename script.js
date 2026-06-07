@@ -1063,25 +1063,22 @@ function initDetailPage() {
   // 社区FAB
   let fab = document.getElementById('communityFab');
   if (fab) fab.remove();
-  if (pet.category === 'community' && pet.status === 'active') {
+  let fabLabel = document.getElementById('communityFabLabel');
+  if (fabLabel) fabLabel.remove();
+  if (pet.status === 'active') {
+    // 文字标签
+    fabLabel = document.createElement('span');
+    fabLabel.id = 'communityFabLabel';
+    fabLabel.className = 'fab-label';
+    fabLabel.textContent = '打卡记录';
+    document.body.appendChild(fabLabel);
+    // FAB 按钮
     fab = document.createElement('button');
     fab.id = 'communityFab';
     fab.className = 'community-fab';
     fab.textContent = '🐾';
-    fab.title = '偶遇打卡';
-    fab.onclick = () => {
-      const now = new Date().toISOString();
-      PostStore.addPost(pet.id, {
-        date: now.split('T')[0],
-        time: now.split('T')[1].substring(0, 5),
-        location: pet.location || '',
-        text: '📸 偶遇了' + pet.name + '！',
-        photos: [],
-        videoCount: 0
-      });
-      Toast.show('🐾 打卡成功！已记录偶遇', 'success');
-      renderPosts(pet);
-    };
+    fab.title = '打卡记录毛孩子的日常';
+    fab.onclick = () => CheckinForm.open(pet);
     document.body.appendChild(fab);
   }
 
@@ -1238,7 +1235,157 @@ function viewFullImage(src) {
 }
 
 /* ===================================================================
-   模块 J-2: PostForm — 发帖表单
+   模块 J-2: CheckinForm — 轻量打卡弹窗
+   =================================================================== */
+const CHECKIN_TYPES = [
+  { key: 'sighting', icon: '👀', label: '偶遇了' },
+  { key: 'feeding',  icon: '🍖', label: '喂食' },
+  { key: 'playing',  icon: '🎾', label: '陪玩' },
+  { key: 'photo',    icon: '📸', label: '拍照' },
+  { key: 'health',   icon: '💊', label: '健康观察' },
+  { key: 'other',    icon: '✨', label: '其他' }
+];
+
+const CheckinForm = {
+  _pet: null,
+  _type: 'sighting',
+
+  open(pet) {
+    this._pet = pet;
+    this._type = 'sighting';
+
+    let overlay = document.getElementById('checkinOverlay');
+    if (!overlay) {
+      overlay = document.createElement('div');
+      overlay.id = 'checkinOverlay';
+      overlay.className = 'confirm-overlay';
+      overlay.innerHTML = this._buildHTML();
+      document.body.appendChild(overlay);
+      overlay.addEventListener('click', e => { if (e.target === overlay) this.close(); });
+      this._bindEvents(overlay);
+    }
+
+    // 自动填时间
+    const now = new Date();
+    overlay.querySelector('#checkinDate').value = now.toISOString().split('T')[0];
+    overlay.querySelector('#checkinTime').value =
+      String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0');
+
+    // 自动填地点：先用宠物默认地点
+    overlay.querySelector('#checkinLocation').value = pet.location || '';
+
+    // 尝试 GPS 自动定位
+    this._tryGeolocation(overlay);
+
+    // 高亮默认类型
+    this._selectType(overlay, 'sighting');
+
+    overlay.classList.add('open');
+  },
+
+  close() {
+    const overlay = document.getElementById('checkinOverlay');
+    if (overlay) overlay.classList.remove('open');
+    this._pet = null;
+  },
+
+  _buildHTML() {
+    const typesHTML = CHECKIN_TYPES.map(t =>
+      `<button class="checkin-type-btn" data-type="${t.key}">${t.icon} ${t.label}</button>`
+    ).join('');
+
+    return `
+    <div class="confirm-dialog" style="width:90vw;max-width:360px;text-align:left;padding:24px 20px 18px;">
+      <div class="confirm-title" style="margin-bottom:14px;">🐾 快速打卡</div>
+
+      <div class="checkin-type-row" id="checkinTypeRow">${typesHTML}</div>
+
+      <div style="display:flex;gap:8px;margin-bottom:10px;">
+        <div class="form-group" style="flex:1;">
+          <label class="form-label" style="font-size:0.7rem;">📅 日期</label>
+          <input class="form-input" id="checkinDate" type="date" style="font-size:0.8rem;padding:8px;">
+        </div>
+        <div class="form-group" style="flex:1;">
+          <label class="form-label" style="font-size:0.7rem;">🕐 时间</label>
+          <input class="form-input" id="checkinTime" type="time" style="font-size:0.8rem;padding:8px;">
+        </div>
+      </div>
+
+      <div class="form-group" style="margin-bottom:16px;">
+        <label class="form-label" style="font-size:0.7rem;">📍 地点 <span id="gpsHint" style="color:var(--tag-comm-text);font-size:0.65rem;"></span></label>
+        <input class="form-input" id="checkinLocation" placeholder="记录地点..." style="font-size:0.8rem;padding:8px;">
+      </div>
+
+      <div style="display:flex;gap:8px;">
+        <button class="confirm-cancel" id="checkinCancel" style="flex:1;">取消</button>
+        <button class="confirm-delete" id="checkinSubmit" style="flex:1;background:var(--tag-comm-text);">✅ 打卡</button>
+      </div>
+    </div>`;
+  },
+
+  _bindEvents(overlay) {
+    // 类型选择
+    overlay.querySelector('#checkinTypeRow').addEventListener('click', e => {
+      const btn = e.target.closest('.checkin-type-btn');
+      if (!btn) return;
+      this._selectType(overlay, btn.dataset.type);
+    });
+
+    overlay.querySelector('#checkinCancel').addEventListener('click', () => this.close());
+    overlay.querySelector('#checkinSubmit').addEventListener('click', () => this._submit());
+  },
+
+  _selectType(overlay, typeKey) {
+    this._type = typeKey;
+    overlay.querySelectorAll('.checkin-type-btn').forEach(b => {
+      b.classList.toggle('active', b.dataset.type === typeKey);
+    });
+  },
+
+  _tryGeolocation(overlay) {
+    const hint = overlay.querySelector('#gpsHint');
+    if (!navigator.geolocation) { hint.textContent = ''; return; }
+    hint.textContent = '📍 定位中...';
+    navigator.geolocation.getCurrentPosition(
+      pos => {
+        hint.textContent = '✅ 已定位';
+        // 不覆盖手动输入，仅在为空时填充
+        const locInput = overlay.querySelector('#checkinLocation');
+        if (!locInput.value.trim()) {
+          locInput.value = `${pos.coords.latitude.toFixed(4)}, ${pos.coords.longitude.toFixed(4)}`;
+        }
+      },
+      () => { hint.textContent = '⚠️ 定位失败，请手动输入'; },
+      { timeout: 5000, enableHighAccuracy: false }
+    );
+  },
+
+  _submit() {
+    const overlay = document.getElementById('checkinOverlay');
+    if (!overlay || !this._pet) return;
+
+    const date = overlay.querySelector('#checkinDate').value;
+    const time = overlay.querySelector('#checkinTime').value;
+    const location = overlay.querySelector('#checkinLocation').value.trim();
+    const typeInfo = CHECKIN_TYPES.find(t => t.key === this._type) || CHECKIN_TYPES[0];
+    const typeText = typeInfo.icon + ' ' + typeInfo.label + this._pet.name;
+
+    PostStore.addPost(this._pet.id, {
+      date, time, location,
+      text: typeText,
+      photos: [],
+      videoCount: 0
+    });
+
+    Toast.show('🐾 打卡成功！', 'success');
+    const savedPet = this._pet;
+    this.close();
+    renderPosts(savedPet);
+  }
+};
+
+/* ===================================================================
+   模块 J-3: PostForm — 发帖表单
    =================================================================== */
 const PostForm = {
   _pet: null,

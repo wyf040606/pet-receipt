@@ -749,6 +749,56 @@ a { text-decoration: none; color: inherit; -webkit-tap-highlight-color: transpar
 
 .btn-secondary:active { background: var(--surface-primary); }
 
+/* FAB 文字标签 */
+.fab-label {
+  position: fixed;
+  bottom: 90px;
+  right: max(24px, calc((100% - 900px) / 2 + 16px));
+  background: var(--ink-primary);
+  color: #fff;
+  font-size: 0.7rem;
+  padding: 4px 12px;
+  border-radius: var(--radius-full);
+  z-index: 199;
+  pointer-events: none;
+  white-space: nowrap;
+  box-shadow: var(--shadow-fab);
+  animation: fabPulse 2s ease-in-out infinite;
+}
+
+@keyframes fabPulse {
+  0%, 100% { opacity: 0.85; }
+  50% { opacity: 1; }
+}
+
+/* 打卡类型选择按钮 */
+.checkin-type-row {
+  display: flex; flex-wrap: wrap; gap: 8px;
+  margin-bottom: 16px;
+  justify-content: center;
+}
+
+.checkin-type-btn {
+  padding: 8px 16px;
+  border-radius: var(--radius-full);
+  font-size: 0.78rem;
+  border: 1.5px solid var(--border-soft);
+  background: var(--surface-card);
+  color: var(--ink-secondary);
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+
+.checkin-type-btn.active {
+  background: var(--tag-comm-text);
+  color: #fff;
+  border-color: var(--tag-comm-text);
+  box-shadow: 0 2px 8px rgba(46,125,50,0.25);
+}
+
+.checkin-type-btn:active { transform: scale(0.95); }
+
 /* --- 5.10 社区 FAB 打卡 --- */
 .community-fab {
   position: fixed;
