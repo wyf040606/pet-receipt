@@ -1373,44 +1373,61 @@ const CheckinForm = {
   _tryGeolocation(overlay) {
     const hint = overlay.querySelector('#gpsHint');
     const locInput = overlay.querySelector('#checkinLocation');
-    const self = this;
 
-    hint.textContent = '🛰️ 定位中...';
+    // 方案1: 浏览器 GPS 精确定位（微信新版已支持）
+    if (navigator.geolocation) {
+      hint.textContent = '🛰️ GPS定位中…请点"允许"';
+      navigator.geolocation.getCurrentPosition(
+        pos => {
+          const { latitude, longitude } = pos.coords;
+          hint.textContent = '📍 解析地址中...';
+          // 用免费 Nominatim API 反查地址
+          fetch(`https://nominatim.openstreetmap.org/reverse?lat=${latitude}&lon=${longitude}&format=json&accept-language=zh`)
+            .then(r => r.json())
+            .then(data => {
+              const addr = data.display_name || data.address?.road || '';
+              const shortAddr = addr.split(',').slice(0, 3).join(',');
+              hint.textContent = '✅ ' + (shortAddr.length > 20 ? shortAddr.slice(0, 20) + '...' : shortAddr);
+              if (!locInput.value.trim()) {
+                locInput.value = shortAddr || `${latitude.toFixed(5)}, ${longitude.toFixed(5)}`;
+              }
+            })
+            .catch(() => {
+              hint.textContent = '✅ GPS已定位';
+              if (!locInput.value.trim()) {
+                locInput.value = `${latitude.toFixed(5)}, ${longitude.toFixed(5)}`;
+              }
+            });
+        },
+        err => {
+          // GPS 失败，降级 IP
+          hint.textContent = '🛰️ GPS未授权，用IP...';
+          this._fallbackIP(hint, locInput);
+        },
+        { timeout: 15000, enableHighAccuracy: true, maximumAge: 60000 }
+      );
+      return;
+    }
 
-    // 方案1: IP 定位（免费、无需授权、微信可用）
+    // 方案2: IP 定位兜底
+    this._fallbackIP(hint, locInput);
+  },
+
+  _fallbackIP(hint, locInput) {
     const ctrl = new AbortController();
     setTimeout(() => ctrl.abort(), 5000);
     fetch('https://ipapi.co/json/', { signal: ctrl.signal })
       .then(r => r.json())
       .then(data => {
         if (data.city) {
-          const addr = [data.city, data.region, data.country_name].filter(Boolean).join(', ');
-          hint.textContent = '✅ ' + (addr.length > 18 ? data.city : addr);
-          if (!locInput.value.trim()) {
-            locInput.value = addr;
-          }
-        } else {
-          throw new Error('no data');
-        }
-      })
-      .catch(() => {
-        // 方案2: 浏览器 GPS 精确定位
-        if (navigator.geolocation) {
-          hint.textContent = '📍 请求GPS...';
-          navigator.geolocation.getCurrentPosition(
-            pos => {
-              hint.textContent = '✅ 已定位';
-              if (!locInput.value.trim()) {
-                locInput.value = pos.coords.latitude.toFixed(4) + ', ' + pos.coords.longitude.toFixed(4);
-              }
-            },
-            () => { hint.textContent = '⚠️ 请手动输入'; },
-            { timeout: 8000, enableHighAccuracy: true }
-          );
+          const addr = [data.city, data.region].filter(Boolean).join(', ');
+          hint.textContent = '✅ ~' + addr;
+          if (!locInput.value.trim()) locInput.value = addr;
         } else {
           hint.textContent = '⚠️ 请手动输入';
         }
-      });
+      })
+      .catch(() => { hint.textContent = '⚠️ 请手动输入'; });
   },
 
   _submit() {
