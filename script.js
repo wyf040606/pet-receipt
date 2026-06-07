@@ -1373,42 +1373,24 @@ const CheckinForm = {
   _tryGeolocation(overlay) {
     const hint = overlay.querySelector('#gpsHint');
     const locInput = overlay.querySelector('#checkinLocation');
-    const self = this;
 
     hint.textContent = '📍 定位中...';
 
-    // 方案1: 高德 IP 定位（JSONP 跨域，无需授权）
-    const callbackName = '_amapIpCb_' + Date.now();
-    window[callbackName] = function(data) {
-      delete window[callbackName];
-      document.getElementById(callbackName)?.remove();
-      if (data.status === '1' && data.city) {
-        const addr = [data.province, data.city].filter(Boolean).join('');
-        hint.textContent = '✅ ' + addr;
-        if (!locInput.value.trim()) locInput.value = addr;
-      } else {
-        self._tryGPS(hint, locInput);
-      }
-    };
-
-    const script = document.createElement('script');
-    script.id = callbackName;
-    script.src = `https://restapi.amap.com/v3/ip?key=d4fc8b72d49064c5f3107e45818aa613&callback=${callbackName}`;
-    script.onerror = () => {
-      delete window[callbackName];
-      script.remove();
-      self._tryGPS(hint, locInput);
-    };
-    document.head.appendChild(script);
-
-    // 超时处理
-    setTimeout(() => {
-      if (window[callbackName]) {
-        delete window[callbackName];
-        script.remove();
-        self._tryGPS(hint, locInput);
-      }
-    }, 6000);
+    // ipapi.co 支持 CORS，浏览器直接可用
+    fetch('https://ipapi.co/json/')
+      .then(r => r.json())
+      .then(data => {
+        if (data.city) {
+          const addr = [data.city, data.region, data.country_name].filter(Boolean).join(', ');
+          hint.textContent = '✅ ' + addr;
+          if (!locInput.value.trim()) locInput.value = addr;
+        } else {
+          hint.textContent = '⚠️ 请手动输入';
+        }
+      })
+      .catch(() => {
+        hint.textContent = '⚠️ 请手动输入';
+      });
   },
 
   _tryGPS(hint, locInput) {
