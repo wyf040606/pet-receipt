@@ -1346,51 +1346,61 @@ const CheckinForm = {
     const hint = overlay.querySelector('#gpsHint');
     const locInput = overlay.querySelector('#checkinLocation');
 
-    // 优先使用高德地图定位
-    if (window.AMap) {
-      hint.textContent = '🗺️ 高德定位中...';
-      try {
-        AMap.plugin('AMap.Geolocation', () => {
-          const geo = new AMap.Geolocation({
-            enableHighAccuracy: true,
-            timeout: 8000,
-            noIpLocate: 0,
-            noGeoLocation: 0
-          });
-          geo.getCurrentPosition((status, result) => {
-            if (status === 'complete' && result.position) {
-              const addr = result.formattedAddress || '';
-              hint.textContent = '✅ ' + (addr.length > 12 ? addr.slice(0,12)+'...' : addr);
-              if (!locInput.value.trim()) {
-                locInput.value = addr;
-              }
-              // 同时存坐标供后续精确使用
-              locInput.dataset.lng = result.position.lng;
-              locInput.dataset.lat = result.position.lat;
-            } else {
-              hint.textContent = '⚠️ 定位失败，请手动输入';
-            }
-          });
-        });
-      } catch (e) {
-        hint.textContent = '⚠️ 定位失败，请手动输入';
-      }
-      return;
-    }
+    hint.textContent = '🗺️ 定位中...';
 
-    // 降级：浏览器原生定位
-    if (!navigator.geolocation) { hint.textContent = ''; return; }
-    hint.textContent = '📍 定位中...';
-    navigator.geolocation.getCurrentPosition(
-      pos => {
-        hint.textContent = '✅ 已定位';
-        if (!locInput.value.trim()) {
-          locInput.value = `${pos.coords.latitude.toFixed(4)}, ${pos.coords.longitude.toFixed(4)}`;
+    // 方案1: 高德 IP 定位（无需授权，秒出城市）
+    fetch('https://restapi.amap.com/v3/ip?key=b9a8cda2e2425c856526a4469d00be8e')
+      .then(r => r.json())
+      .then(data => {
+        if (data.status === '1' && data.city) {
+          const addr = [data.province, data.city, data.district].filter(Boolean).join('');
+          hint.textContent = '✅ ' + (addr.length > 14 ? data.city : addr);
+          if (!locInput.value.trim()) {
+            locInput.value = addr || data.city;
+          }
+          return;
         }
-      },
-      () => { hint.textContent = '⚠️ 定位失败，请手动输入'; },
-      { timeout: 5000, enableHighAccuracy: false }
-    );
+        throw new Error('IP定位失败');
+      })
+      .catch(() => {
+        // 方案2: 高德精确定位（需用户授权）
+        if (window.AMap) {
+          hint.textContent = '📍 请求精确定位...';
+          try {
+            AMap.plugin('AMap.Geolocation', () => {
+              const geo = new AMap.Geolocation({ enableHighAccuracy: true, timeout: 6000 });
+              geo.getCurrentPosition((status, result) => {
+                if (status === 'complete' && result.formattedAddress) {
+                  hint.textContent = '✅ ' + result.formattedAddress.slice(0, 14);
+                  if (!locInput.value.trim()) {
+                    locInput.value = result.formattedAddress;
+                  }
+                } else {
+                  hint.textContent = '⚠️ 请手动输入地点';
+                }
+              });
+            });
+          } catch (e) { hint.textContent = '⚠️ 请手动输入地点'; }
+          return;
+        }
+
+        // 方案3: 浏览器原生定位
+        if (navigator.geolocation) {
+          hint.textContent = '📍 定位中...';
+          navigator.geolocation.getCurrentPosition(
+            pos => {
+              hint.textContent = '✅ 已定位';
+              if (!locInput.value.trim()) {
+                locInput.value = pos.coords.latitude.toFixed(4) + ', ' + pos.coords.longitude.toFixed(4);
+              }
+            },
+            () => { hint.textContent = '⚠️ 请手动输入地点'; },
+            { timeout: 5000 }
+          );
+        } else {
+          hint.textContent = '⚠️ 请手动输入地点';
+        }
+      });
   },
 
   _submit() {
