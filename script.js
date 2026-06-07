@@ -1345,62 +1345,68 @@ const CheckinForm = {
   _tryGeolocation(overlay) {
     const hint = overlay.querySelector('#gpsHint');
     const locInput = overlay.querySelector('#checkinLocation');
+    const self = this;
 
-    hint.textContent = '🗺️ 定位中...';
+    // 方案1: 高德 JS 精确定位（需用户点"允许"，返回详细地址）
+    if (window.AMap && window.AMap.Geolocation) {
+      hint.textContent = '📍 请点浏览器上方"允许"';
+      try {
+        AMap.plugin('AMap.Geolocation', () => {
+          const geo = new AMap.Geolocation({ enableHighAccuracy: true, timeout: 10000 });
+          geo.getCurrentPosition((status, result) => {
+            if (status === 'complete' && result.formattedAddress) {
+              hint.textContent = '✅ ' + result.formattedAddress.slice(0, 16);
+              if (!locInput.value.trim()) {
+                locInput.value = result.formattedAddress;
+              }
+            } else {
+              // 用户拒绝或超时，降级到 IP
+              hint.textContent = '🛰️ 粗略定位中...';
+              self._ipLocate(hint, locInput);
+            }
+          });
+        });
+      } catch (e) {
+        self._ipLocate(hint, locInput);
+      }
+      return;
+    }
 
-    // 方案1: 高德 IP 定位（无需授权，秒出城市）
-    fetch('https://restapi.amap.com/v3/ip?key=b9a8cda2e2425c856526a4469d00be8e')
+    // 方案2: 浏览器原生定位
+    if (navigator.geolocation) {
+      hint.textContent = '📍 请点浏览器上方"允许"';
+      navigator.geolocation.getCurrentPosition(
+        pos => {
+          hint.textContent = '✅ 已定位';
+          if (!locInput.value.trim()) {
+            locInput.value = pos.coords.latitude.toFixed(4) + ', ' + pos.coords.longitude.toFixed(4);
+          }
+        },
+        () => { self._ipLocate(hint, locInput); },
+        { timeout: 10000, enableHighAccuracy: true }
+      );
+    } else {
+      self._ipLocate(hint, locInput);
+    }
+  },
+
+  _ipLocate(hint, locInput) {
+    const ctrl = new AbortController();
+    setTimeout(() => ctrl.abort(), 4000);
+    fetch('https://restapi.amap.com/v3/ip?key=b9a8cda2e2425c856526a4469d00be8e', { signal: ctrl.signal })
       .then(r => r.json())
       .then(data => {
         if (data.status === '1' && data.city) {
-          const addr = [data.province, data.city, data.district].filter(Boolean).join('');
-          hint.textContent = '✅ ' + (addr.length > 14 ? data.city : addr);
+          const addr = [data.province, data.city].filter(Boolean).join('');
+          hint.textContent = '✅ ~' + (addr.length > 12 ? data.city : addr);
           if (!locInput.value.trim()) {
-            locInput.value = addr || data.city;
+            locInput.value = addr;
           }
-          return;
-        }
-        throw new Error('IP定位失败');
-      })
-      .catch(() => {
-        // 方案2: 高德精确定位（需用户授权）
-        if (window.AMap) {
-          hint.textContent = '📍 请求精确定位...';
-          try {
-            AMap.plugin('AMap.Geolocation', () => {
-              const geo = new AMap.Geolocation({ enableHighAccuracy: true, timeout: 6000 });
-              geo.getCurrentPosition((status, result) => {
-                if (status === 'complete' && result.formattedAddress) {
-                  hint.textContent = '✅ ' + result.formattedAddress.slice(0, 14);
-                  if (!locInput.value.trim()) {
-                    locInput.value = result.formattedAddress;
-                  }
-                } else {
-                  hint.textContent = '⚠️ 请手动输入地点';
-                }
-              });
-            });
-          } catch (e) { hint.textContent = '⚠️ 请手动输入地点'; }
-          return;
-        }
-
-        // 方案3: 浏览器原生定位
-        if (navigator.geolocation) {
-          hint.textContent = '📍 定位中...';
-          navigator.geolocation.getCurrentPosition(
-            pos => {
-              hint.textContent = '✅ 已定位';
-              if (!locInput.value.trim()) {
-                locInput.value = pos.coords.latitude.toFixed(4) + ', ' + pos.coords.longitude.toFixed(4);
-              }
-            },
-            () => { hint.textContent = '⚠️ 请手动输入地点'; },
-            { timeout: 5000 }
-          );
         } else {
           hint.textContent = '⚠️ 请手动输入地点';
         }
-      });
+      })
+      .catch(() => { hint.textContent = '⚠️ 请手动输入地点'; });
   },
 
   _submit() {
