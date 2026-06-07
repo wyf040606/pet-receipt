@@ -1377,21 +1377,38 @@ const CheckinForm = {
 
     hint.textContent = '📍 定位中...';
 
-    // 方案1: 高德 IP 定位（秒出，无需授权，微信可用）
-    const ctrl = new AbortController();
-    setTimeout(() => ctrl.abort(), 5000);
-    fetch('https://restapi.amap.com/v3/ip?key=d4fc8b72d49064c5f3107e45818aa613', { signal: ctrl.signal })
-      .then(r => r.json())
-      .then(data => {
-        if (data.status === '1' && data.city) {
-          const addr = [data.province, data.city].filter(Boolean).join('');
-          hint.textContent = '✅ ' + addr;
-          if (!locInput.value.trim()) locInput.value = addr;
-        } else {
-          self._tryGPS(hint, locInput);
-        }
-      })
-      .catch(() => { self._tryGPS(hint, locInput); });
+    // 方案1: 高德 IP 定位（JSONP 跨域，无需授权）
+    const callbackName = '_amapIpCb_' + Date.now();
+    window[callbackName] = function(data) {
+      delete window[callbackName];
+      document.getElementById(callbackName)?.remove();
+      if (data.status === '1' && data.city) {
+        const addr = [data.province, data.city].filter(Boolean).join('');
+        hint.textContent = '✅ ' + addr;
+        if (!locInput.value.trim()) locInput.value = addr;
+      } else {
+        self._tryGPS(hint, locInput);
+      }
+    };
+
+    const script = document.createElement('script');
+    script.id = callbackName;
+    script.src = `https://restapi.amap.com/v3/ip?key=d4fc8b72d49064c5f3107e45818aa613&callback=${callbackName}`;
+    script.onerror = () => {
+      delete window[callbackName];
+      script.remove();
+      self._tryGPS(hint, locInput);
+    };
+    document.head.appendChild(script);
+
+    // 超时处理
+    setTimeout(() => {
+      if (window[callbackName]) {
+        delete window[callbackName];
+        script.remove();
+        self._tryGPS(hint, locInput);
+      }
+    }, 6000);
   },
 
   _tryGPS(hint, locInput) {
