@@ -1423,12 +1423,12 @@ const CheckinForm = {
   _fallbackIP(hint, locInput) {
     const ctrl = new AbortController();
     setTimeout(() => ctrl.abort(), 5000);
-    fetch('https://ipapi.co/json/', { signal: ctrl.signal })
+    fetch('https://restapi.amap.com/v3/ip?key=d4fc8b72d49064c5f3107e45818aa613', { signal: ctrl.signal })
       .then(r => r.json())
       .then(data => {
-        if (data.city) {
-          const addr = [data.city, data.region].filter(Boolean).join(', ');
-          hint.textContent = '✅ ~' + addr;
+        if (data.status === '1' && data.city) {
+          const addr = [data.province, data.city].filter(Boolean).join(' ');
+          hint.textContent = '✅ ' + (addr.length > 16 ? data.city : addr);
           if (!locInput.value.trim()) locInput.value = addr;
         } else {
           hint.textContent = '⚠️ 请手动输入';
