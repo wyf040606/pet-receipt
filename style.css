@@ -393,10 +393,15 @@ a { text-decoration: none; color: inherit; -webkit-tap-highlight-color: transpar
   justify-content: center;
   margin: 4px 0;
   min-width: 0;
+  max-height: 80px;
+  overflow-y: auto;
+  scrollbar-width: none;
 }
 
+.card-tags::-webkit-scrollbar { display: none; }
+
 .card-tag {
-  padding: 1px 8px;
+  padding: 2px 8px;
   border-radius: var(--radius-full);
   font-size: 0.62rem;
   font-weight: 500;
@@ -404,6 +409,7 @@ a { text-decoration: none; color: inherit; -webkit-tap-highlight-color: transpar
   color: var(--ink-secondary);
   border: 1px solid var(--border-soft);
   white-space: nowrap;
+  line-height: 1.4;
 }
 
 /* 分割虚线 */

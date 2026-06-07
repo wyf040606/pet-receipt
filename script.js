@@ -240,7 +240,7 @@ function renderPetCards(petList, container) {
         ? '<span class="card-badge badge-community">📍 社区毛孩</span>'
         : '<span class="card-badge badge-private">🏠 本家主子</span>';
 
-    const tagsHTML = (pet.featureTags || []).slice(0, 3).map(t =>
+    const tagsHTML = (pet.featureTags || []).map(t =>
       `<span class="card-tag">${t}</span>`
     ).join('');
 
