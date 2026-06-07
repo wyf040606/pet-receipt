@@ -1798,9 +1798,12 @@ async function generateReceipt(pet) {
 /* ===================================================================
    模块 L: 页面路由
    =================================================================== */
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
   const isDetailPage = document.getElementById('petDetail') !== null;
   const isIndexPage = document.getElementById('petGrid') !== null;
+
+  // 初始化云端同步
+  initSync();
 
   if (isDetailPage) initDetailPage();
   else if (isIndexPage) initIndexPage();
@@ -1815,3 +1818,94 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 });
+
+/* ===================================================================
+   模块 M: 云端同步初始化 & UI
+   =================================================================== */
+function initSync() {
+  const syncBtn = document.getElementById('syncSettingsBtn');
+  if (!syncBtn) return;
+
+  // 恢复之前的同步状态
+  if (CloudSync.restore()) {
+    syncBtn.classList.add('active');
+    syncBtn.title = '☁️ 已启用同步';
+    // 启动时从云端拉取最新数据
+    CloudSync.syncFromCloud().then(() => {
+      refreshPets();
+      // 刷新当前页面
+      if (document.getElementById('petGrid')) initIndexPage();
+      if (document.getElementById('petDetail')) initDetailPage();
+    });
+  }
+
+  syncBtn.addEventListener('click', () => {
+    if (CloudSync._enabled) {
+      // 已启用 → 手动推送
+      syncBtn.textContent = '⏳';
+      CloudSync.syncToCloud().then(ok => {
+        syncBtn.textContent = '☁️';
+        if (ok) Toast.show('☁️ 数据已同步到云端', 'success');
+        else Toast.show('同步失败，请检查网络', 'error');
+      });
+    } else {
+      // 未启用 → 输入 token
+      showSyncDialog();
+    }
+  });
+}
+
+function showSyncDialog() {
+  let overlay = document.getElementById('syncDialog');
+  if (!overlay) {
+    overlay = document.createElement('div');
+    overlay.id = 'syncDialog';
+    overlay.className = 'confirm-overlay';
+    overlay.innerHTML = `
+      <div class="confirm-dialog" style="text-align:left;max-width:340px;">
+        <div style="font-size:1.2rem;margin-bottom:12px;">☁️ 开启云端同步</div>
+        <p style="font-size:0.78rem;color:var(--ink-secondary);margin-bottom:12px;">
+          输入 GitHub Token，数据将自动同步到你所有设备。<br>
+          <a href="https://github.com/settings/tokens" target="_blank" style="color:var(--tag-comm-text);">获取 Token →</a>
+        </p>
+        <input class="form-input" id="syncTokenInput" placeholder="ghp_xxxxxxxxxxxx" style="margin-bottom:12px;font-size:0.8rem;">
+        <div style="display:flex;gap:8px;">
+          <button class="confirm-cancel" id="syncCancel" style="flex:1;">取消</button>
+          <button class="confirm-delete" id="syncEnable" style="flex:1;background:var(--tag-comm-text);">启用同步</button>
+        </div>
+      </div>`;
+    document.body.appendChild(overlay);
+    overlay.addEventListener('click', e => { if (e.target === overlay) overlay.classList.remove('open'); });
+  }
+
+  overlay.querySelector('#syncCancel').onclick = () => overlay.classList.remove('open');
+  overlay.querySelector('#syncEnable').onclick = async () => {
+    const token = overlay.querySelector('#syncTokenInput').value.trim();
+    if (!token) { Toast.show('请输入 Token', 'error'); return; }
+
+    CloudSync.enable(token);
+    overlay.classList.remove('open');
+
+    // 立即推送本地数据
+    const ok = await CloudSync.syncToCloud();
+    if (ok) {
+      const btn = document.getElementById('syncSettingsBtn');
+      if (btn) { btn.classList.add('active'); btn.title = '☁️ 已启用同步'; }
+      Toast.show('☁️ 同步已开启！数据已上传', 'success');
+    } else {
+      Toast.show('连接失败，请检查网络', 'error');
+    }
+  };
+
+  overlay.classList.add('open');
+}
+
+/** 数据变更后自动推送到云端 */
+async function autoSync() {
+  if (CloudSync._enabled) {
+    await CloudSync.syncToCloud();
+  }
+}
+
+// 挂载全局触发，供 data.js 的 PetStore.save 调用
+window._triggerSync = autoSync;

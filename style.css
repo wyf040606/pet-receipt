@@ -475,7 +475,23 @@ a { text-decoration: none; color: inherit; -webkit-tap-highlight-color: transpar
 
 .fab-btn:active { transform: scale(0.9); background: #000; }
 
-/* --- 4.8 底部页脚 --- */
+/* --- 4.8 Sync 按钮 --- */
+.sync-btn {
+  width: 36px; height: 36px;
+  border-radius: 50%;
+  font-size: 1.1rem;
+  background: var(--surface-card);
+  border: 1px solid var(--border-soft);
+  cursor: pointer;
+  transition: all 0.2s;
+  display: inline-flex; align-items: center; justify-content: center;
+  margin-bottom: 4px;
+}
+
+.sync-btn.active { background: #E8F5E9; border-color: var(--tag-comm-text); }
+.sync-btn:active { transform: scale(0.9); }
+
+/* --- 4.9 底部页脚 --- */
 .app-footer {
   text-align: center;
   padding-top: 24px; margin-top: auto;
