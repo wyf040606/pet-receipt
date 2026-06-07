@@ -1077,7 +1077,7 @@ function initDetailPage() {
         location: pet.location || '',
         text: '📸 偶遇了' + pet.name + '！',
         photos: [],
-        hasVideo: false
+        videoCount: 0
       });
       Toast.show('🐾 打卡成功！已记录偶遇', 'success');
       renderPosts(pet);
@@ -1148,12 +1148,14 @@ function renderPosts(pet) {
       }
     }
 
-    // 视频区域
+    // 视频区域（支持多段）
     let videoHTML = '';
-    if (post.hasVideo) {
-      videoHTML = `<div class="post-video-wrap" id="video_${post.id}">
-        <p style="font-size:0.7rem;color:var(--ink-light);padding:8px;text-align:center;">📹 加载视频中...</p>
-      </div>`;
+    if (post.videoCount > 0) {
+      videoHTML = Array.from({length: post.videoCount}, (_, vi) =>
+        `<div class="post-video-wrap" id="video_${post.id}_${vi}" style="margin-bottom:6px;">
+          <p style="font-size:0.7rem;color:var(--ink-light);padding:8px;text-align:center;">📹 视频 ${vi+1} 加载中...</p>
+        </div>`
+      ).join('');
     }
 
     // 地点
@@ -1198,20 +1200,22 @@ function renderPosts(pet) {
     });
   });
 
-  // 加载视频
+  // 加载所有视频
   posts.forEach(post => {
-    if (post.hasVideo) {
-      loadPostVideo(post.id);
+    if (post.videoCount > 0) {
+      for (let vi = 0; vi < post.videoCount; vi++) {
+        loadPostVideo(post.id, vi);
+      }
     }
   });
 }
 
 /** 加载帖子中的视频 */
-async function loadPostVideo(postId) {
-  const wrap = document.getElementById('video_' + postId);
+async function loadPostVideo(postId, vi) {
+  const wrap = document.getElementById('video_' + postId + '_' + vi);
   if (!wrap) return;
   try {
-    const record = await VideoDB.get('post_video_' + postId);
+    const record = await VideoDB.get('post_video_' + postId + '_' + vi);
     if (!record || !record.data) { wrap.style.display = 'none'; return; }
     const url = URL.createObjectURL(record.data);
     wrap.innerHTML = `<video controls playsinline preload="metadata" src="${url}" type="${record.type || 'video/mp4'}"></video>`;
@@ -1239,12 +1243,12 @@ function viewFullImage(src) {
 const PostForm = {
   _pet: null,
   _photos: [],
-  _videoFile: null,
+  _videoFiles: [],
 
   open(pet) {
     this._pet = pet;
     this._photos = [];
-    this._videoFile = null;
+    this._videoFiles = [];
 
     let overlay = document.getElementById('postFormOverlay');
     if (!overlay) {
@@ -1265,7 +1269,7 @@ const PostForm = {
     overlay.querySelector('#postDate').value = new Date().toISOString().split('T')[0];
     overlay.querySelector('#postTime').value = '';
     this._photos = [];
-    this._videoFile = null;
+    this._videoFiles = [];
     this._renderPreviews(overlay);
 
     overlay.classList.add('open');
@@ -1313,9 +1317,9 @@ const PostForm = {
       </div>
 
       <div class="form-group">
-        <label class="form-label">🎬 视频 (最多1个)</label>
+        <label class="form-label">🎬 视频 (可多段，每段≤100MB)</label>
         <div class="post-video-preview" id="postVideoPreview" style="display:none;"></div>
-        <button class="video-add-btn" id="postVideoBtn">📹 选择视频</button>
+        <button class="video-add-btn" id="postVideoBtn">📹 添加视频</button>
         <input type="file" id="postVideoInput" accept="video/*" style="display:none;">
       </div>
 
@@ -1346,7 +1350,7 @@ const PostForm = {
       photoInput.value = '';
     });
 
-    // 视频
+    // 视频（支持多段）
     const videoInput = overlay.querySelector('#postVideoInput');
     overlay.querySelector('#postVideoBtn').addEventListener('click', () => videoInput.click());
     videoInput.addEventListener('change', (e) => {
@@ -1357,7 +1361,12 @@ const PostForm = {
         videoInput.value = '';
         return;
       }
-      this._videoFile = file;
+      if (this._videoFiles.length >= 5) {
+        Toast.show('最多添加5段视频', 'error');
+        videoInput.value = '';
+        return;
+      }
+      this._videoFiles.push(file);
       this._renderPreviews(overlay);
       videoInput.value = '';
     });
@@ -1395,13 +1404,19 @@ const PostForm = {
 
     // 视频预览
     const vidPreview = overlay.querySelector('#postVideoPreview');
-    if (this._videoFile) {
+    if (this._videoFiles.length > 0) {
       vidPreview.style.display = 'flex';
-      vidPreview.innerHTML = `✅ ${this._videoFile.name} <span class="video-remove-btn" id="postVideoDel">移除</span>`;
-      setTimeout(() => {
-        const rm = overlay.querySelector('#postVideoDel');
-        if (rm) rm.onclick = () => { this._videoFile = null; this._renderPreviews(overlay); };
-      }, 50);
+      vidPreview.style.flexDirection = 'column';
+      vidPreview.style.gap = '6px';
+      vidPreview.innerHTML = this._videoFiles.map((f, i) =>
+        `✅ ${f.name} <span class="video-remove-btn" data-vidx="${i}">移除</span>`
+      ).join('<br>');
+      vidPreview.querySelectorAll('.video-remove-btn').forEach(btn => {
+        btn.onclick = () => {
+          this._videoFiles.splice(parseInt(btn.dataset.vidx), 1);
+          this._renderPreviews(overlay);
+        };
+      });
     } else {
       vidPreview.style.display = 'none';
     }
@@ -1416,7 +1431,7 @@ const PostForm = {
     const date = overlay.querySelector('#postDate')?.value || new Date().toISOString().split('T')[0];
     const time = overlay.querySelector('#postTime')?.value || '';
 
-    if (!text && this._photos.length === 0 && !this._videoFile) {
+    if (!text && this._photos.length === 0 && this._videoFiles.length === 0) {
       Toast.show('至少写一句话、传一张照片或一段视频哦~', 'error');
       return;
     }
@@ -1424,22 +1439,22 @@ const PostForm = {
     const post = PostStore.addPost(this._pet.id, {
       date, time, location, text,
       photos: [...this._photos],
-      hasVideo: !!this._videoFile
+      videoCount: this._videoFiles.length
     });
 
-    // 保存视频到 IndexedDB
-    if (this._videoFile) {
+    // 保存多段视频到 IndexedDB
+    for (let i = 0; i < this._videoFiles.length; i++) {
       try {
-        await VideoDB.save('post_video_' + post.id, this._videoFile);
+        await VideoDB.save('post_video_' + post.id + '_' + i, this._videoFiles[i]);
       } catch (e) {
-        console.error('视频保存失败:', e);
-        Toast.show('视频保存失败', 'error');
+        console.error('视频' + i + '保存失败:', e);
       }
     }
 
     Toast.show('📝 记录发布成功！', 'success');
+    const savedPet = this._pet;
     this.close();
-    renderPosts(this._pet);
+    renderPosts(savedPet);
   }
 };
 
@@ -1552,7 +1567,7 @@ async function generateReceipt(pet) {
     location: '',
     text: `🧾 生成了${pet.name}的热敏小票`,
     photos: receiptImg.src ? [receiptImg.src] : [],
-    hasVideo: false
+    videoCount: 0
   });
   renderPosts(pet);
 

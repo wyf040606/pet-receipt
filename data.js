@@ -613,7 +613,7 @@ const PostStore = {
       location: postData.location || '',
       text: postData.text || '',
       photos: postData.photos || [],
-      hasVideo: !!postData.hasVideo,
+      videoCount: postData.videoCount || 0,
       createdAt: new Date().toISOString()
     };
     posts.unshift(post);
@@ -625,8 +625,10 @@ const PostStore = {
   async deletePost(petId, postId) {
     const posts = this.getPosts(petId);
     const post = posts.find(p => p.id === postId);
-    if (post && post.hasVideo) {
-      await VideoDB.remove('post_video_' + postId).catch(() => {});
+    if (post && post.videoCount > 0) {
+      for (let i = 0; i < post.videoCount; i++) {
+        await VideoDB.remove('post_video_' + postId + '_' + i).catch(() => {});
+      }
     }
     const filtered = posts.filter(p => p.id !== postId);
     this.savePosts(petId, filtered);
