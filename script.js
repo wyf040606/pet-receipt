@@ -1344,13 +1344,46 @@ const CheckinForm = {
 
   _tryGeolocation(overlay) {
     const hint = overlay.querySelector('#gpsHint');
+    const locInput = overlay.querySelector('#checkinLocation');
+
+    // 优先使用高德地图定位
+    if (window.AMap) {
+      hint.textContent = '🗺️ 高德定位中...';
+      try {
+        AMap.plugin('AMap.Geolocation', () => {
+          const geo = new AMap.Geolocation({
+            enableHighAccuracy: true,
+            timeout: 8000,
+            noIpLocate: 0,
+            noGeoLocation: 0
+          });
+          geo.getCurrentPosition((status, result) => {
+            if (status === 'complete' && result.position) {
+              const addr = result.formattedAddress || '';
+              hint.textContent = '✅ ' + (addr.length > 12 ? addr.slice(0,12)+'...' : addr);
+              if (!locInput.value.trim()) {
+                locInput.value = addr;
+              }
+              // 同时存坐标供后续精确使用
+              locInput.dataset.lng = result.position.lng;
+              locInput.dataset.lat = result.position.lat;
+            } else {
+              hint.textContent = '⚠️ 定位失败，请手动输入';
+            }
+          });
+        });
+      } catch (e) {
+        hint.textContent = '⚠️ 定位失败，请手动输入';
+      }
+      return;
+    }
+
+    // 降级：浏览器原生定位
     if (!navigator.geolocation) { hint.textContent = ''; return; }
     hint.textContent = '📍 定位中...';
     navigator.geolocation.getCurrentPosition(
       pos => {
         hint.textContent = '✅ 已定位';
-        // 不覆盖手动输入，仅在为空时填充
-        const locInput = overlay.querySelector('#checkinLocation');
         if (!locInput.value.trim()) {
           locInput.value = `${pos.coords.latitude.toFixed(4)}, ${pos.coords.longitude.toFixed(4)}`;
         }
