@@ -583,6 +583,57 @@ const PetStore = {
 };
 
 /* ===================================================================
+   PostStore — 帖子系统 (微博式记录，每条帖子可含多图/视频/地点)
+   =================================================================== */
+const PostStore = {
+  /** 获取某宠物的所有帖子 (按时间倒序) */
+  getPosts(petId) {
+    try {
+      return JSON.parse(localStorage.getItem('posts_' + petId) || '[]');
+    } catch (e) { return []; }
+  },
+
+  /** 保存帖子列表 */
+  savePosts(petId, posts) {
+    try {
+      localStorage.setItem('posts_' + petId, JSON.stringify(posts));
+    } catch (e) {
+      console.error('PostStore: 保存失败', e);
+    }
+  },
+
+  /** 新增帖子 */
+  addPost(petId, postData) {
+    const posts = this.getPosts(petId);
+    const post = {
+      id: 'post_' + Date.now(),
+      petId,
+      date: postData.date || new Date().toISOString().split('T')[0],
+      time: postData.time || '',
+      location: postData.location || '',
+      text: postData.text || '',
+      photos: postData.photos || [],
+      hasVideo: !!postData.hasVideo,
+      createdAt: new Date().toISOString()
+    };
+    posts.unshift(post);
+    this.savePosts(petId, posts);
+    return post;
+  },
+
+  /** 删除帖子 (同时清理关联视频) */
+  async deletePost(petId, postId) {
+    const posts = this.getPosts(petId);
+    const post = posts.find(p => p.id === postId);
+    if (post && post.hasVideo) {
+      await VideoDB.remove('post_video_' + postId).catch(() => {});
+    }
+    const filtered = posts.filter(p => p.id !== postId);
+    this.savePosts(petId, filtered);
+  }
+};
+
+/* ===================================================================
    全局快捷函数（向后兼容 script.js）
    =================================================================== */
 

@@ -1031,11 +1031,16 @@ function initDetailPage() {
       </div>
     ` : ''}
 
-    <div class="video-player-wrap" id="videoPlayerWrap" style="display:none;"></div>
   `;
 
-  // 时光轴
-  renderTimeline(pet);
+  // 帖子记录
+  renderPosts(pet);
+
+  // 发帖按钮
+  const postBtn = document.getElementById('postNewBtn');
+  if (postBtn) {
+    postBtn.onclick = () => PostForm.open(pet);
+  }
 
   // 生成小票按钮 (使用 onclick 避免重复绑定)
   const generateBtn = document.getElementById('generateBtn');
@@ -1065,12 +1070,17 @@ function initDetailPage() {
     fab.textContent = '🐾';
     fab.title = '偶遇打卡';
     fab.onclick = () => {
-      const now = new Date().toISOString().split('T')[0];
-      const timeline = JSON.parse(localStorage.getItem('pet_timeline_' + pet.id) || '[]');
-      timeline.push({ date: now, text: '📸 有人在' + (pet.location || '附近') + '偶遇了' + pet.name + '！', type: 'checkin' });
-      localStorage.setItem('pet_timeline_' + pet.id, JSON.stringify(timeline));
+      const now = new Date().toISOString();
+      PostStore.addPost(pet.id, {
+        date: now.split('T')[0],
+        time: now.split('T')[1].substring(0, 5),
+        location: pet.location || '',
+        text: '📸 偶遇了' + pet.name + '！',
+        photos: [],
+        hasVideo: false
+      });
       Toast.show('🐾 打卡成功！已记录偶遇', 'success');
-      renderTimeline(pet);
+      renderPosts(pet);
     };
     document.body.appendChild(fab);
   }
@@ -1107,66 +1117,331 @@ function initDetailPage() {
     });
   }
 
-  // 视频加载
-  if (pet.hasVideo) {
-    loadDetailVideo(pet.id);
-  }
 }
 
 /* ===================================================================
-   模块 I-extra: 视频加载
+   模块 J: 帖子渲染 (微博式记录)
    =================================================================== */
-async function loadDetailVideo(petId) {
-  const wrap = document.getElementById('videoPlayerWrap');
+function renderPosts(pet) {
+  const section = document.getElementById('timelineSection');
+  if (!section) return;
+
+  const posts = PostStore.getPosts(pet.id);
+
+  if (posts.length === 0) {
+    section.innerHTML = `
+      <div class="timeline-title">📜 时光记录</div>
+      <div class="post-empty">还没有记录～<br>点击下方「📝 发帖」写下第一条吧 ✨</div>`;
+    return;
+  }
+
+  const cardsHTML = posts.map((post, i) => {
+    // 照片区域
+    let photosHTML = '';
+    if (post.photos && post.photos.length > 0) {
+      if (post.photos.length === 1) {
+        photosHTML = `<img class="post-photo-single" src="${post.photos[0]}" alt="照片" onclick="viewFullImage('${post.photos[0]}')">`;
+      } else {
+        photosHTML = `<div class="post-photos">${post.photos.map(p =>
+          `<img class="post-photo" src="${p}" alt="照片" onclick="viewFullImage('${p}')">`
+        ).join('')}</div>`;
+      }
+    }
+
+    // 视频区域
+    let videoHTML = '';
+    if (post.hasVideo) {
+      videoHTML = `<div class="post-video-wrap" id="video_${post.id}">
+        <p style="font-size:0.7rem;color:var(--ink-light);padding:8px;text-align:center;">📹 加载视频中...</p>
+      </div>`;
+    }
+
+    // 地点
+    const locHTML = post.location
+      ? `<span class="post-location">📍 ${post.location}</span>`
+      : '';
+
+    return `
+    <div style="position:relative;">
+      <span class="timeline-dot">🐾</span>
+      <div class="post-card">
+        <div class="post-header">
+          <div class="post-meta">
+            <span class="post-date">${post.date}${post.time ? ' ' + post.time : ''}</span>
+            ${locHTML}
+          </div>
+          <span class="post-delete-btn" data-post-id="${post.id}" data-pet-id="${pet.id}">🗑️</span>
+        </div>
+        ${post.text ? `<div class="post-text">${post.text}</div>` : ''}
+        ${photosHTML}
+        ${videoHTML}
+      </div>
+    </div>`;
+  }).join('');
+
+  section.innerHTML = `
+    <div class="timeline-title">📜 时光记录 · ${posts.length} 条</div>
+    <div class="post-timeline">${cardsHTML}</div>`;
+
+  // 绑定删除事件
+  section.querySelectorAll('.post-delete-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const postId = btn.dataset.postId;
+      const petId = btn.dataset.petId;
+      if (confirm('确认删除这条记录吗？')) {
+        PostStore.deletePost(petId, postId).then(() => {
+          Toast.show('记录已删除', 'success');
+          renderPosts(pet);
+        });
+      }
+    });
+  });
+
+  // 加载视频
+  posts.forEach(post => {
+    if (post.hasVideo) {
+      loadPostVideo(post.id);
+    }
+  });
+}
+
+/** 加载帖子中的视频 */
+async function loadPostVideo(postId) {
+  const wrap = document.getElementById('video_' + postId);
   if (!wrap) return;
   try {
-    const record = await VideoDB.get(petId);
+    const record = await VideoDB.get('post_video_' + postId);
     if (!record || !record.data) { wrap.style.display = 'none'; return; }
     const url = URL.createObjectURL(record.data);
-    wrap.style.display = 'block';
-    wrap.innerHTML = `
-      <video controls playsinline preload="metadata"
-             style="width:100%;max-height:240px;display:block;background:#000;border-radius:var(--radius-sm);">
-        <source src="${url}" type="${record.type || 'video/mp4'}">
-        你的浏览器不支持视频播放
-      </video>`;
+    wrap.innerHTML = `<video controls playsinline preload="metadata" src="${url}" type="${record.type || 'video/mp4'}"></video>`;
   } catch (e) {
     wrap.style.display = 'none';
   }
 }
 
-/* ===================================================================
-   模块 J: 时光轴渲染
-   =================================================================== */
-function renderTimeline(pet) {
-  const section = document.getElementById('timelineSection');
-  if (!section) return;
-
-  const timeline = JSON.parse(localStorage.getItem('pet_timeline_' + pet.id) || '[]');
-
-  if (timeline.length === 0) {
-    section.innerHTML = `
-      <div class="timeline-title">📜 时光轴</div>
-      <div class="timeline-axis">
-        <div class="timeline-empty">还没有记录～<br>生成第一张小票就会出现在这里 ✨</div>
-      </div>`;
-    return;
+/** 全屏查看图片 */
+function viewFullImage(src) {
+  let viewer = document.getElementById('photoFullView');
+  if (!viewer) {
+    viewer = document.createElement('div');
+    viewer.id = 'photoFullView';
+    viewer.style.cssText = 'position:fixed;inset:0;z-index:7000;background:rgba(0,0,0,0.95);display:flex;align-items:center;justify-content:center;cursor:pointer;';
+    viewer.addEventListener('click', () => viewer.remove());
+    document.body.appendChild(viewer);
   }
-
-  const cardsHTML = timeline.sort((a, b) => b.date.localeCompare(a.date)).map((item, i) => `
-    <div style="position:relative;">
-      <span class="timeline-node">🐾</span>
-      <div class="timeline-card">
-        <div class="tl-date">${item.date}</div>
-        <div class="tl-content">${item.text}</div>
-      </div>
-    </div>
-  `).join('');
-
-  section.innerHTML = `
-    <div class="timeline-title">📜 时光轴 · ${timeline.length} 条记录</div>
-    <div class="timeline-axis">${cardsHTML}</div>`;
+  viewer.innerHTML = `<img src="${src}" style="max-width:95vw;max-height:95vh;object-fit:contain;border-radius:4px;">`;
 }
+
+/* ===================================================================
+   模块 J-2: PostForm — 发帖表单
+   =================================================================== */
+const PostForm = {
+  _pet: null,
+  _photos: [],
+  _videoFile: null,
+
+  open(pet) {
+    this._pet = pet;
+    this._photos = [];
+    this._videoFile = null;
+
+    let overlay = document.getElementById('postFormOverlay');
+    if (!overlay) {
+      overlay = document.createElement('div');
+      overlay.id = 'postFormOverlay';
+      overlay.className = 'post-form-overlay';
+      overlay.innerHTML = this._buildHTML();
+      document.body.appendChild(overlay);
+
+      overlay.querySelector('.post-form-close').addEventListener('click', () => this.close());
+      overlay.addEventListener('click', e => { if (e.target === overlay) this.close(); });
+      this._bindEvents(overlay);
+    }
+
+    // 重置
+    overlay.querySelector('#postText').value = '';
+    overlay.querySelector('#postLocation').value = '';
+    overlay.querySelector('#postDate').value = new Date().toISOString().split('T')[0];
+    overlay.querySelector('#postTime').value = '';
+    this._photos = [];
+    this._videoFile = null;
+    this._renderPreviews(overlay);
+
+    overlay.classList.add('open');
+  },
+
+  close() {
+    const overlay = document.getElementById('postFormOverlay');
+    if (overlay) overlay.classList.remove('open');
+    this._pet = null;
+  },
+
+  _buildHTML() {
+    return `
+    <div class="post-form">
+      <div class="post-form-header">
+        <span class="post-form-title">📝 发布新记录</span>
+        <button class="post-form-close">✕</button>
+      </div>
+
+      <div class="post-form-row">
+        <div class="form-group">
+          <label class="form-label">📅 日期</label>
+          <input class="form-input" id="postDate" type="date">
+        </div>
+        <div class="form-group">
+          <label class="form-label">🕐 时间</label>
+          <input class="form-input" id="postTime" type="time">
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">📍 地点 (可选)</label>
+        <input class="form-input" id="postLocation" placeholder="例: 小区花园 / 宠物医院 / 家里...">
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">💬 想说的话</label>
+        <textarea class="form-textarea" id="postText" placeholder="记录毛孩子的今天..." rows="3"></textarea>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">📸 照片 (可多张)</label>
+        <div class="post-photo-preview" id="postPhotoPreview"></div>
+        <input type="file" id="postPhotoInput" accept="image/*" multiple style="display:none;">
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">🎬 视频 (最多1个)</label>
+        <div class="post-video-preview" id="postVideoPreview" style="display:none;"></div>
+        <button class="video-add-btn" id="postVideoBtn">📹 选择视频</button>
+        <input type="file" id="postVideoInput" accept="video/*" style="display:none;">
+      </div>
+
+      <button class="post-submit-btn" id="postSubmitBtn">💾 发布记录</button>
+    </div>`;
+  },
+
+  _bindEvents(overlay) {
+    // 照片
+    const photoInput = overlay.querySelector('#postPhotoInput');
+    overlay.querySelector('#postPhotoPreview').addEventListener('click', (e) => {
+      if (e.target.closest('.post-form-add-photo') || e.target.closest('.preview-del')) return;
+      // Clicking the preview area itself does nothing
+    });
+    // 添加照片按钮（动态生成）
+    overlay.querySelector('#postPhotoInput').addEventListener('change', async (e) => {
+      const files = Array.from(e.target.files || []);
+      for (const file of files) {
+        if (this._photos.length >= 9) break;
+        try {
+          const dataUrl = await compressImage(file, 600, 600, 0.7);
+          this._photos.push(dataUrl);
+        } catch (err) {
+          Toast.show('照片处理失败', 'error');
+        }
+      }
+      this._renderPreviews(overlay);
+      photoInput.value = '';
+    });
+
+    // 视频
+    const videoInput = overlay.querySelector('#postVideoInput');
+    overlay.querySelector('#postVideoBtn').addEventListener('click', () => videoInput.click());
+    videoInput.addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      if (file.size > 100 * 1024 * 1024) {
+        Toast.show('视频不能超过100MB哦~', 'error');
+        videoInput.value = '';
+        return;
+      }
+      this._videoFile = file;
+      this._renderPreviews(overlay);
+      videoInput.value = '';
+    });
+
+    // 提交
+    overlay.querySelector('#postSubmitBtn').addEventListener('click', () => this._submit());
+  },
+
+  _renderPreviews(overlay) {
+    // 照片预览
+    const preview = overlay.querySelector('#postPhotoPreview');
+    preview.innerHTML = this._photos.map((p, i) => `
+      <div class="preview-item" style="background-image:url(${p})">
+        <span class="preview-del" data-idx="${i}">✕</span>
+      </div>
+    `).join('');
+
+    if (this._photos.length < 9) {
+      preview.innerHTML += '<div class="post-form-add-photo" id="postAddPhotoBtn">+</div>';
+    }
+
+    // 绑定删除和添加
+    preview.querySelectorAll('.preview-del').forEach(del => {
+      del.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const idx = parseInt(del.dataset.idx);
+        this._photos.splice(idx, 1);
+        this._renderPreviews(overlay);
+      });
+    });
+    const addBtn = preview.querySelector('#postAddPhotoBtn');
+    if (addBtn) {
+      addBtn.addEventListener('click', () => overlay.querySelector('#postPhotoInput').click());
+    }
+
+    // 视频预览
+    const vidPreview = overlay.querySelector('#postVideoPreview');
+    if (this._videoFile) {
+      vidPreview.style.display = 'flex';
+      vidPreview.innerHTML = `✅ ${this._videoFile.name} <span class="video-remove-btn" id="postVideoDel">移除</span>`;
+      setTimeout(() => {
+        const rm = overlay.querySelector('#postVideoDel');
+        if (rm) rm.onclick = () => { this._videoFile = null; this._renderPreviews(overlay); };
+      }, 50);
+    } else {
+      vidPreview.style.display = 'none';
+    }
+  },
+
+  async _submit() {
+    const overlay = document.getElementById('postFormOverlay');
+    if (!overlay || !this._pet) return;
+
+    const text = overlay.querySelector('#postText')?.value?.trim() || '';
+    const location = overlay.querySelector('#postLocation')?.value?.trim() || '';
+    const date = overlay.querySelector('#postDate')?.value || new Date().toISOString().split('T')[0];
+    const time = overlay.querySelector('#postTime')?.value || '';
+
+    if (!text && this._photos.length === 0 && !this._videoFile) {
+      Toast.show('至少写一句话、传一张照片或一段视频哦~', 'error');
+      return;
+    }
+
+    const post = PostStore.addPost(this._pet.id, {
+      date, time, location, text,
+      photos: [...this._photos],
+      hasVideo: !!this._videoFile
+    });
+
+    // 保存视频到 IndexedDB
+    if (this._videoFile) {
+      try {
+        await VideoDB.save('post_video_' + post.id, this._videoFile);
+      } catch (e) {
+        console.error('视频保存失败:', e);
+        Toast.show('视频保存失败', 'error');
+      }
+    }
+
+    Toast.show('📝 记录发布成功！', 'success');
+    this.close();
+    renderPosts(this._pet);
+  }
+};
 
 /* ===================================================================
    模块 K: 热敏小票生成器 (升级版)
@@ -1270,11 +1545,16 @@ async function generateReceipt(pet) {
     generateBtn.style.pointerEvents = 'auto';
   }
 
-  // 记录到时光轴
-  const timeline = JSON.parse(localStorage.getItem('pet_timeline_' + pet.id) || '[]');
-  timeline.push({ date: timeStr.split(' ')[0], text: `🧾 生成了${pet.name}的热敏小票` });
-  localStorage.setItem('pet_timeline_' + pet.id, JSON.stringify(timeline));
-  renderTimeline(pet);
+  // 记录为帖子
+  PostStore.addPost(pet.id, {
+    date: timeStr.split(' ')[0],
+    time: timeStr.split(' ')[1],
+    location: '',
+    text: `🧾 生成了${pet.name}的热敏小票`,
+    photos: receiptImg.src ? [receiptImg.src] : [],
+    hasVideo: false
+  });
+  renderPosts(pet);
 
   // 全局记录
   records.push({ petId: pet.id, generatedAt: timeStr, dataUrl: receiptImg.src });
