@@ -1374,42 +1374,48 @@ const CheckinForm = {
     const hint = overlay.querySelector('#gpsHint');
     const locInput = overlay.querySelector('#checkinLocation');
 
-    // 方案1: 浏览器 GPS 精确定位（微信新版已支持）
+    // 方案1: 浏览器 GPS + 高德地址反查
     if (navigator.geolocation) {
-      hint.textContent = '🛰️ GPS定位中…请点"允许"';
+      hint.textContent = '🛰️ 定位中…请点"允许"';
       navigator.geolocation.getCurrentPosition(
         pos => {
           const { latitude, longitude } = pos.coords;
-          hint.textContent = '📍 解析地址中...';
-          // 用免费 Nominatim API 反查地址
-          fetch(`https://nominatim.openstreetmap.org/reverse?lat=${latitude}&lon=${longitude}&format=json&accept-language=zh`)
-            .then(r => r.json())
-            .then(data => {
-              const addr = data.display_name || data.address?.road || '';
-              const shortAddr = addr.split(',').slice(0, 3).join(',');
-              hint.textContent = '✅ ' + (shortAddr.length > 20 ? shortAddr.slice(0, 20) + '...' : shortAddr);
-              if (!locInput.value.trim()) {
-                locInput.value = shortAddr || `${latitude.toFixed(5)}, ${longitude.toFixed(5)}`;
-              }
-            })
-            .catch(() => {
-              hint.textContent = '✅ GPS已定位';
-              if (!locInput.value.trim()) {
-                locInput.value = `${latitude.toFixed(5)}, ${longitude.toFixed(5)}`;
-              }
+          // 优先用高德逆地理编码（中文精准地址）
+          if (window.AMap && window.AMap.Geocoder) {
+            hint.textContent = '📍 高德解析地址...';
+            AMap.plugin('AMap.Geocoder', () => {
+              const geocoder = new AMap.Geocoder({ radius: 1000 });
+              geocoder.getAddress([longitude, latitude], (status, result) => {
+                if (status === 'complete' && result.regeocode) {
+                  const addr = result.regeocode.formattedAddress || '';
+                  hint.textContent = '✅ ' + (addr.length > 18 ? addr.slice(0, 18)+'…' : addr);
+                  if (!locInput.value.trim()) locInput.value = addr;
+                } else {
+                  hint.textContent = '✅ GPS已定位';
+                  if (!locInput.value.trim()) {
+                    locInput.value = `${latitude.toFixed(5)}, ${longitude.toFixed(5)}`;
+                  }
+                }
+              });
             });
+          } else {
+            // 无高德，直接显示坐标
+            hint.textContent = '✅ GPS已定位';
+            if (!locInput.value.trim()) {
+              locInput.value = `${latitude.toFixed(5)}, ${longitude.toFixed(5)}`;
+            }
+          }
         },
-        err => {
-          // GPS 失败，降级 IP
-          hint.textContent = '🛰️ GPS未授权，用IP...';
+        () => {
+          hint.textContent = '🛰️ 未授权，IP定位...';
           this._fallbackIP(hint, locInput);
         },
-        { timeout: 15000, enableHighAccuracy: true, maximumAge: 60000 }
+        { timeout: 15000, enableHighAccuracy: true }
       );
       return;
     }
 
-    // 方案2: IP 定位兜底
+    // 方案2: IP 兜底
     this._fallbackIP(hint, locInput);
   },
 
