@@ -1826,32 +1826,26 @@ function initSync() {
   const syncBtn = document.getElementById('syncSettingsBtn');
   if (!syncBtn) return;
 
-  // 恢复之前的同步状态
-  if (CloudSync.restore()) {
-    syncBtn.classList.add('active');
-    syncBtn.title = '☁️ 已启用同步';
-    // 启动时从云端拉取最新数据
-    CloudSync.syncFromCloud().then(() => {
-      refreshPets();
-      // 刷新当前页面
-      if (document.getElementById('petGrid')) initIndexPage();
-      if (document.getElementById('petDetail')) initDetailPage();
-    });
-  }
+  // 自动启用同步（Token 已内置）
+  CloudSync.enable('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');
+  syncBtn.classList.add('active');
+  syncBtn.title = '☁️ 云端同步已开启';
 
+  // 启动时从云端拉取最新数据
+  CloudSync.syncFromCloud().then(() => {
+    refreshPets();
+    if (document.getElementById('petGrid')) initIndexPage();
+    if (document.getElementById('petDetail')) initDetailPage();
+  });
+
+  // 点击手动推送
   syncBtn.addEventListener('click', () => {
-    if (CloudSync._enabled) {
-      // 已启用 → 手动推送
-      syncBtn.textContent = '⏳';
-      CloudSync.syncToCloud().then(ok => {
-        syncBtn.textContent = '☁️';
-        if (ok) Toast.show('☁️ 数据已同步到云端', 'success');
-        else Toast.show('同步失败，请检查网络', 'error');
-      });
-    } else {
-      // 未启用 → 输入 token
-      showSyncDialog();
-    }
+    syncBtn.textContent = '⏳';
+    CloudSync.syncToCloud().then(ok => {
+      syncBtn.textContent = '☁️';
+      if (ok) Toast.show('☁️ 已同步', 'success');
+      else Toast.show('同步失败', 'error');
+    });
   });
 }
 
