@@ -1274,8 +1274,13 @@ const CheckinForm = {
     // 自动填地点：先用宠物默认地点
     overlay.querySelector('#checkinLocation').value = pet.location || '';
 
-    // 尝试 GPS 自动定位
-    this._tryGeolocation(overlay);
+    // 常用地点快捷选择
+    this._renderRecentLocations(overlay);
+
+    // 尝试定位（非微信环境）
+    if (navigator.userAgent.indexOf('MicroMessenger') === -1) {
+      this._tryGeolocation(overlay);
+    }
 
     // 高亮默认类型
     this._selectType(overlay, 'sighting');
@@ -1313,7 +1318,8 @@ const CheckinForm = {
 
       <div class="form-group" style="margin-bottom:16px;">
         <label class="form-label" style="font-size:0.7rem;">📍 地点 <span id="gpsHint" style="color:var(--tag-comm-text);font-size:0.65rem;"></span></label>
-        <input class="form-input" id="checkinLocation" placeholder="记录地点..." style="font-size:0.8rem;padding:8px;">
+        <input class="form-input" id="checkinLocation" placeholder="输入或选择地点..." style="font-size:0.8rem;padding:8px;" autocomplete="off">
+        <div class="recent-locations" id="recentLocations" style="display:none;"></div>
       </div>
 
       <div style="display:flex;gap:8px;">
@@ -1340,6 +1346,30 @@ const CheckinForm = {
     overlay.querySelectorAll('.checkin-type-btn').forEach(b => {
       b.classList.toggle('active', b.dataset.type === typeKey);
     });
+  },
+
+  _renderRecentLocations(overlay) {
+    const container = overlay.querySelector('#recentLocations');
+    const locations = JSON.parse(localStorage.getItem('recent_locations') || '[]');
+    if (locations.length === 0) { container.style.display = 'none'; return; }
+    container.style.display = 'flex';
+    container.innerHTML = locations.slice(0, 5).map(l =>
+      `<span class="recent-loc-tag" data-loc="${l}">📍 ${l}</span>`
+    ).join('');
+    // 点击填入
+    container.querySelectorAll('.recent-loc-tag').forEach(tag => {
+      tag.addEventListener('click', () => {
+        overlay.querySelector('#checkinLocation').value = tag.dataset.loc;
+      });
+    });
+  },
+
+  _saveLocation(loc) {
+    if (!loc.trim()) return;
+    const locations = JSON.parse(localStorage.getItem('recent_locations') || '[]');
+    const filtered = locations.filter(l => l !== loc);
+    filtered.unshift(loc);
+    localStorage.setItem('recent_locations', JSON.stringify(filtered.slice(0, 10)));
   },
 
   _tryGeolocation(overlay) {
@@ -1425,6 +1455,9 @@ const CheckinForm = {
       photos: [],
       videoCount: 0
     });
+
+    // 记住地点供下次快捷选择
+    this._saveLocation(location);
 
     Toast.show('🐾 打卡成功！', 'success');
     const savedPet = this._pet;

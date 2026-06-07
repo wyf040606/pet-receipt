@@ -799,6 +799,30 @@ a { text-decoration: none; color: inherit; -webkit-tap-highlight-color: transpar
 
 .checkin-type-btn:active { transform: scale(0.95); }
 
+/* 常用地点标签 */
+.recent-locations {
+  display: flex; flex-wrap: wrap; gap: 6px;
+  margin-top: 8px;
+}
+
+.recent-loc-tag {
+  padding: 4px 10px;
+  border-radius: var(--radius-full);
+  font-size: 0.7rem;
+  background: var(--surface-primary);
+  color: var(--ink-secondary);
+  border: 1px solid var(--border-soft);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s;
+}
+
+.recent-loc-tag:active {
+  background: var(--tag-community);
+  color: var(--tag-comm-text);
+  border-color: var(--tag-comm-text);
+}
+
 /* --- 5.10 社区 FAB 打卡 --- */
 .community-fab {
   position: fixed;
