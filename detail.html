@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="theme-color" content="#FFF9F5">
+  <title>档案详情 | 宠物小票</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <!-- 卡夹翻开转场遮罩 -->
+  <div id="pageTransition"></div>
+
+  <div class="app-container">
+    <!-- ===== 顶栏 ===== -->
+    <div class="detail-top-bar">
+      <a class="back-btn" href="javascript:void(0)" onclick="navigateWithTransition('index.html')">
+        ← 返回档案夹
+      </a>
+      <div class="action-btns">
+        <button class="btn-icon" id="editBtn" title="编辑档案">✏️</button>
+        <button class="btn-icon danger" id="deleteBtn" title="删除档案">🗑️</button>
+      </div>
+    </div>
+
+    <!-- ===== 宠物详情卡片 (拍立得 + 信息) ===== -->
+    <div class="pet-detail-card" id="petDetail">
+      <!-- JS 渲染 -->
+    </div>
+
+    <!-- ===== 操作按钮 ===== -->
+    <div class="detail-actions">
+      <button class="btn-primary" id="generateBtn">🖨️ 生成热敏小票</button>
+    </div>
+
+    <!-- ===== 时光轴 ===== -->
+    <div class="timeline-section" id="timelineSection">
+      <!-- JS 渲染 -->
+    </div>
+
+    <!-- ===== 底部 ===== -->
+    <footer class="app-footer">
+      <span class="barcode-text">NO.2026-PET-ARCHIVE-001</span>
+    </footer>
+  </div>
+
+  <!-- ===== 小票打印区 (离屏) ===== -->
+  <div id="receiptPrintZone"></div>
+
+  <!-- ===== 小票预览覆盖层 ===== -->
+  <div class="receipt-overlay" id="receiptOverlay">
+    <img id="receiptImage" src="" alt="热敏小票">
+    <button class="close-receipt" id="closeReceipt">✕ 关闭</button>
+    <p class="save-hint">📱 长按上方图片即可保存到相册</p>
+  </div>
+
+  <!-- 数据层 -->
+  <script src="data.js"></script>
+  <!-- html2canvas -->
+  <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+  <!-- QR 码 -->
+  <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+  <!-- 核心引擎 -->
+  <script src="script.js"></script>
+</body>
+</html>

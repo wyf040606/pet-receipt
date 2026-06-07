@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="theme-color" content="#FFF9F5">
+  <title>宠物小票 · 档案夹 | PET RECEIPT</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <!-- 卡夹翻开转场遮罩 -->
+  <div id="pageTransition"></div>
+
+  <div class="app-container">
+    <!-- ===== 标题 ===== -->
+    <header class="app-header">
+      <h1 class="title-main receipt-text">PET RECEIPT</h1>
+      <p class="title-sub receipt-text">🐾 宠物小票 · 毛孩档案夹</p>
+    </header>
+
+    <!-- ===== 筛选栏 ===== -->
+    <div class="filter-bar">
+      <nav class="type-tabs" id="typeTabs">
+        <!-- JS 动态渲染 -->
+      </nav>
+      <div class="breed-selector">
+        <input type="text" class="breed-search" placeholder="🔍 品种 / 名字 / 标签..." autocomplete="off">
+        <div class="breed-dropdown"></div>
+      </div>
+    </div>
+
+    <!-- ===== 宠物卡片网格 ===== -->
+    <main class="pet-grid" id="petGrid">
+      <!-- JS 渲染 -->
+    </main>
+
+    <!-- ===== 底部 ===== -->
+    <footer class="app-footer">
+      <span class="barcode-text">NO.2026-PET-ARCHIVE-001</span>
+    </footer>
+  </div>
+
+  <!-- 数据层 -->
+  <script src="data.js"></script>
+  <!-- 核心引擎 -->
+  <script src="script.js"></script>
+</body>
+</html>
