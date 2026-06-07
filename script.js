@@ -1375,49 +1375,42 @@ const CheckinForm = {
     const locInput = overlay.querySelector('#checkinLocation');
     const self = this;
 
-    hint.textContent = '🛰️ 定位中...';
+    hint.textContent = '📍 定位中...';
 
-    // 方案1: 高德定位（融合GPS+基站+IP，适配国内浏览器）
-    if (window.AMap) {
-      AMap.plugin('AMap.Geolocation', () => {
-        const geo = new AMap.Geolocation({
-          enableHighAccuracy: true,
-          timeout: 12000,
-          noIpLocate: 0,
-          noGeoLocation: 0
-        });
-        geo.getCurrentPosition((status, result) => {
-          if (status === 'complete' && result.position) {
-            const addr = result.formattedAddress || '';
-            hint.textContent = '✅ ' + (addr.length > 18 ? addr.slice(0, 18)+'…' : addr);
-            if (!locInput.value.trim()) locInput.value = addr;
-            return;
-          }
-          // 高德定位失败 → IP兜底
-          self._fallbackIP(hint, locInput);
-        });
-      });
-      return;
-    }
+    // 方案1: 高德 IP 定位（秒出，无需授权，微信可用）
+    const ctrl = new AbortController();
+    setTimeout(() => ctrl.abort(), 5000);
+    fetch('https://restapi.amap.com/v3/ip?key=d4fc8b72d49064c5f3107e45818aa613', { signal: ctrl.signal })
+      .then(r => r.json())
+      .then(data => {
+        if (data.status === '1' && data.city) {
+          const addr = [data.province, data.city].filter(Boolean).join('');
+          hint.textContent = '✅ ' + addr;
+          if (!locInput.value.trim()) locInput.value = addr;
+        } else {
+          self._tryGPS(hint, locInput);
+        }
+      })
+      .catch(() => { self._tryGPS(hint, locInput); });
+  },
 
-    // 方案2: 浏览器 GPS
+  _tryGPS(hint, locInput) {
+    // 方案2: 浏览器 GPS（更精确，需授权）
     if (navigator.geolocation) {
-      hint.textContent = '📍 GPS定位中...';
+      hint.textContent = '🛰️ 尝试GPS...';
       navigator.geolocation.getCurrentPosition(
         pos => {
-          hint.textContent = '✅ GPS已定位';
+          hint.textContent = '✅ GPS定位';
           if (!locInput.value.trim()) {
             locInput.value = `${pos.coords.latitude.toFixed(5)}, ${pos.coords.longitude.toFixed(5)}`;
           }
         },
-        () => { self._fallbackIP(hint, locInput); },
-        { timeout: 12000, enableHighAccuracy: true }
+        () => { hint.textContent = '⚠️ 请手动输入地点'; },
+        { timeout: 10000, enableHighAccuracy: true }
       );
-      return;
+    } else {
+      hint.textContent = '⚠️ 请手动输入地点';
     }
-
-    // 方案3: IP
-    self._fallbackIP(hint, locInput);
   },
 
   _fallbackIP(hint, locInput) {
