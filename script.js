@@ -1277,10 +1277,8 @@ const CheckinForm = {
     // 常用地点快捷选择
     this._renderRecentLocations(overlay);
 
-    // 尝试定位（非微信环境）
-    if (navigator.userAgent.indexOf('MicroMessenger') === -1) {
-      this._tryGeolocation(overlay);
-    }
+    // 尝试自动定位
+    this._tryGeolocation(overlay);
 
     // 高亮默认类型
     this._selectType(overlay, 'sighting');
@@ -1377,66 +1375,42 @@ const CheckinForm = {
     const locInput = overlay.querySelector('#checkinLocation');
     const self = this;
 
-    // 方案1: 高德 JS 精确定位（需用户点"允许"，返回详细地址）
-    if (window.AMap && window.AMap.Geolocation) {
-      hint.textContent = '📍 请点浏览器上方"允许"';
-      try {
-        AMap.plugin('AMap.Geolocation', () => {
-          const geo = new AMap.Geolocation({ enableHighAccuracy: true, timeout: 10000 });
-          geo.getCurrentPosition((status, result) => {
-            if (status === 'complete' && result.formattedAddress) {
-              hint.textContent = '✅ ' + result.formattedAddress.slice(0, 16);
-              if (!locInput.value.trim()) {
-                locInput.value = result.formattedAddress;
-              }
-            } else {
-              // 用户拒绝或超时，降级到 IP
-              hint.textContent = '🛰️ 粗略定位中...';
-              self._ipLocate(hint, locInput);
-            }
-          });
-        });
-      } catch (e) {
-        self._ipLocate(hint, locInput);
-      }
-      return;
-    }
+    hint.textContent = '🛰️ 定位中...';
 
-    // 方案2: 浏览器原生定位
-    if (navigator.geolocation) {
-      hint.textContent = '📍 请点浏览器上方"允许"';
-      navigator.geolocation.getCurrentPosition(
-        pos => {
-          hint.textContent = '✅ 已定位';
-          if (!locInput.value.trim()) {
-            locInput.value = pos.coords.latitude.toFixed(4) + ', ' + pos.coords.longitude.toFixed(4);
-          }
-        },
-        () => { self._ipLocate(hint, locInput); },
-        { timeout: 10000, enableHighAccuracy: true }
-      );
-    } else {
-      self._ipLocate(hint, locInput);
-    }
-  },
-
-  _ipLocate(hint, locInput) {
+    // 方案1: IP 定位（免费、无需授权、微信可用）
     const ctrl = new AbortController();
-    setTimeout(() => ctrl.abort(), 4000);
-    fetch('https://restapi.amap.com/v3/ip?key=b9a8cda2e2425c856526a4469d00be8e', { signal: ctrl.signal })
+    setTimeout(() => ctrl.abort(), 5000);
+    fetch('https://ipapi.co/json/', { signal: ctrl.signal })
       .then(r => r.json())
       .then(data => {
-        if (data.status === '1' && data.city) {
-          const addr = [data.province, data.city].filter(Boolean).join('');
-          hint.textContent = '✅ ~' + (addr.length > 12 ? data.city : addr);
+        if (data.city) {
+          const addr = [data.city, data.region, data.country_name].filter(Boolean).join(', ');
+          hint.textContent = '✅ ' + (addr.length > 18 ? data.city : addr);
           if (!locInput.value.trim()) {
             locInput.value = addr;
           }
         } else {
-          hint.textContent = '⚠️ 请手动输入地点';
+          throw new Error('no data');
         }
       })
-      .catch(() => { hint.textContent = '⚠️ 请手动输入地点'; });
+      .catch(() => {
+        // 方案2: 浏览器 GPS 精确定位
+        if (navigator.geolocation) {
+          hint.textContent = '📍 请求GPS...';
+          navigator.geolocation.getCurrentPosition(
+            pos => {
+              hint.textContent = '✅ 已定位';
+              if (!locInput.value.trim()) {
+                locInput.value = pos.coords.latitude.toFixed(4) + ', ' + pos.coords.longitude.toFixed(4);
+              }
+            },
+            () => { hint.textContent = '⚠️ 请手动输入'; },
+            { timeout: 8000, enableHighAccuracy: true }
+          );
+        } else {
+          hint.textContent = '⚠️ 请手动输入';
+        }
+      });
   },
 
   _submit() {
