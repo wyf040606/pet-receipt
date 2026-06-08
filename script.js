@@ -1843,34 +1843,95 @@ function initSync() {
   const syncBtn = document.getElementById('syncSettingsBtn');
   if (!syncBtn) return;
 
-  // 自动启用同步（Token 已内置）
-  CloudSync.enable('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');
+  syncBtn.title = '📦 数据备份/恢复';
   syncBtn.classList.add('active');
-  syncBtn.title = '☁️ 云端同步已开启';
 
-  // 启动时从云端拉取最新数据
-  CloudSync.syncFromCloud().then(() => {
-    refreshPets();
-    if (document.getElementById('petGrid')) initIndexPage();
-    if (document.getElementById('petDetail')) initDetailPage();
+  syncBtn.addEventListener('click', () => {
+    showSyncDialog();
   });
+}
 
-  // 点击手动推送
-  syncBtn.addEventListener('click', async () => {
-    syncBtn.textContent = '⏳';
-    try {
-      const ok = await CloudSync.syncToCloud();
-      syncBtn.textContent = '☁️';
-      if (ok) {
-        Toast.show('☁️ 已同步', 'success');
-      } else {
-        Toast.show('同步失败，检查网络或Token权限', 'error');
+function showSyncDialog() {
+  let overlay = document.getElementById('syncDialog');
+  if (!overlay) {
+    overlay = document.createElement('div');
+    overlay.id = 'syncDialog';
+    overlay.className = 'confirm-overlay';
+    overlay.innerHTML = `
+      <div class="confirm-dialog" style="text-align:left;max-width:320px;">
+        <div style="font-size:1.1rem;margin-bottom:14px;">📦 数据备份 & 恢复</div>
+        <p style="font-size:0.75rem;color:var(--ink-secondary);margin-bottom:16px;">
+          导出数据为文件，在另一台设备上导入即可互通。<br>
+          也可通过微信/QQ发送文件来传输。
+        </p>
+        <div style="display:flex;flex-direction:column;gap:8px;">
+          <button class="confirm-delete" id="syncExport" style="background:var(--tag-comm-text);flex:none;padding:12px;">
+            📥 导出数据（下载文件）
+          </button>
+          <button class="confirm-cancel" id="syncImportBtn" style="flex:none;padding:12px;border:1.5px solid var(--border-soft);">
+            📤 导入数据（选择文件）
+          </button>
+          <input type="file" id="syncImportFile" accept=".json" style="display:none;">
+        </div>
+        <button class="confirm-cancel" id="syncClose" style="margin-top:10px;width:100%;">关闭</button>
+      </div>`;
+    document.body.appendChild(overlay);
+    overlay.addEventListener('click', e => { if (e.target === overlay) overlay.classList.remove('open'); });
+  }
+
+  overlay.querySelector('#syncClose').onclick = () => overlay.classList.remove('open');
+
+  // 导出
+  overlay.querySelector('#syncExport').onclick = () => {
+    const data = {
+      pets: PetStore.getAll(),
+      records: JSON.parse(localStorage.getItem('pet_receipt_records') || '[]'),
+      exportedAt: new Date().toISOString()
+    };
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'pet-receipt-backup-' + new Date().toISOString().split('T')[0] + '.json';
+    a.click();
+    URL.revokeObjectURL(url);
+    Toast.show('📥 数据已导出！', 'success');
+    overlay.classList.remove('open');
+  };
+
+  // 导入按钮 → 触发文件选择
+  overlay.querySelector('#syncImportBtn').onclick = () => {
+    overlay.querySelector('#syncImportFile').click();
+  };
+
+  // 导入文件处理
+  overlay.querySelector('#syncImportFile').onchange = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      try {
+        const data = JSON.parse(ev.target.result);
+        if (data.pets && Array.isArray(data.pets)) {
+          PetStore.save(data.pets);
+          refreshPets();
+        }
+        if (data.records && Array.isArray(data.records)) {
+          localStorage.setItem('pet_receipt_records', JSON.stringify(data.records));
+        }
+        Toast.show('📤 数据已恢复！', 'success');
+        overlay.classList.remove('open');
+        // 刷新页面
+        if (document.getElementById('petGrid')) initIndexPage();
+        if (document.getElementById('petDetail')) initDetailPage();
+      } catch (err) {
+        Toast.show('文件格式错误', 'error');
       }
-    } catch (e) {
-      syncBtn.textContent = '☁️';
-      Toast.show('同步出错: ' + (e.message || '未知错误'), 'error');
-    }
-  });
+    };
+    reader.readAsText(file);
+  };
+
+  overlay.classList.add('open');
 }
 
 function showSyncDialog() {
@@ -1918,12 +1979,5 @@ function showSyncDialog() {
   overlay.classList.add('open');
 }
 
-/** 数据变更后自动推送到云端 */
-async function autoSync() {
-  if (CloudSync._enabled) {
-    await CloudSync.syncToCloud();
-  }
-}
-
-// 挂载全局触发，供 data.js 的 PetStore.save 调用
-window._triggerSync = autoSync;
+// 同步已改用文件导入/导出，不再需要自动云端同步
+window._triggerSync = null;
