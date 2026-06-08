@@ -1759,20 +1759,11 @@ async function generateReceipt(pet) {
     </div>
   `;
 
-  // QR 码
+  // QR 码（用在线API生成，国内可访问）
   const qrWrap = document.getElementById('rzQrWrap');
   if (qrWrap) {
-    qrWrap.innerHTML = '';
-    try {
-      new QRCode(qrWrap, {
-        text: `https://wyf040606.github.io/pet-receipt/detail.html?id=${encodeURIComponent(pet.id)}`,
-        width: 100, height: 100,
-        colorDark: '#1a1a1a', colorLight: '#f2f2f2'
-      });
-    } catch (e) {
-      console.error('QR失败:', e);
-      qrWrap.innerHTML = `<div style="font-size:0.55rem;color:#999;">QR: ${pet.id}</div>`;
-    }
+    const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=${encodeURIComponent('https://wyf040606.github.io/pet-receipt/detail.html?id=' + pet.id)}`;
+    qrWrap.innerHTML = `<img src="${qrUrl}" width="100" height="100" style="display:block;" onerror="this.parentElement.innerHTML='<div style=font-size:0.55rem;color:#999>QR: ${pet.id}</div>'">`;
   }
 
   await new Promise(r => setTimeout(r, 600));
