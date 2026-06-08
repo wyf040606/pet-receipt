@@ -1762,21 +1762,23 @@ async function generateReceipt(pet) {
   // QR 码
   const qrWrap = document.getElementById('rzQrWrap');
   if (qrWrap && typeof QRCode !== 'undefined') {
-    const qrCanvas = document.createElement('canvas');
-    qrWrap.appendChild(qrCanvas);
+    qrWrap.innerHTML = ''; // 清空
     try {
+      const qrCanvas = document.createElement('canvas');
+      qrWrap.appendChild(qrCanvas);
       await QRCode.toCanvas(qrCanvas, `https://wyf040606.github.io/pet-receipt/detail.html?id=${encodeURIComponent(pet.id)}`, {
-        width: 80, margin: 1,
+        width: 100, margin: 1,
         color: { dark: '#1a1a1a', light: '#f2f2f2' }
       });
     } catch (e) {
-      qrWrap.innerHTML = `<div style="font-size:0.55rem;color:#999;">[ QR: ${pet.id} ]</div>`;
+      console.error('QR生成失败:', e);
+      qrWrap.innerHTML = `<div style="font-size:0.55rem;color:#999;">QR生成失败</div>`;
     }
   } else if (qrWrap) {
-    qrWrap.innerHTML = `<div style="font-size:0.55rem;color:#999;">[ QR: ${pet.id} ]</div>`;
+    qrWrap.innerHTML = `<div style="font-size:0.55rem;color:#999;">QR库未加载</div>`;
   }
 
-  await new Promise(r => setTimeout(r, 400));
+  await new Promise(r => setTimeout(r, 600));
 
   // html2canvas 捕获
   if (typeof html2canvas !== 'undefined') {
