@@ -1765,7 +1765,7 @@ async function generateReceipt(pet) {
     const qrCanvas = document.createElement('canvas');
     qrWrap.appendChild(qrCanvas);
     try {
-      await QRCode.toCanvas(qrCanvas, `${pet.id} | ${pet.name}`, {
+      await QRCode.toCanvas(qrCanvas, `https://wyf040606.github.io/pet-receipt/detail.html?id=${encodeURIComponent(pet.id)}`, {
         width: 80, margin: 1,
         color: { dark: '#1a1a1a', light: '#f2f2f2' }
       });
