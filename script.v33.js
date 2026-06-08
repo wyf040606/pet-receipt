@@ -1746,8 +1746,8 @@ async function generateReceipt(pet) {
       <tr><td>登记</td><td>${pet.date}</td></tr>
     </table>
     <hr class="rz-divider">
-    <div class="rz-flow-line"><span class="rz-label">今日记录</span><span class="rz-divider-line"></span><span class="rz-value">罐头x1 / 贴贴x3</span></div>
-    <div class="rz-flow-line"><span class="rz-label">心情指数</span><span class="rz-divider-line"></span><span class="rz-value">★★★★★</span></div>
+    <div class="rz-flow-line"><span class="rz-label">最爱食物</span><span class="rz-divider-line"></span><span class="rz-value">${pet.favoriteFood || '保密'}</span></div>
+    <div class="rz-flow-line"><span class="rz-label">性格特点</span><span class="rz-divider-line"></span><span class="rz-value">${pet.personality || '可爱'}</span></div>
     <div class="rz-barcode">${pet.id}</div>
     <div class="rz-barcode-lines">${barLines}</div>
     <div class="rz-qr-wrap" id="rzQrWrap"></div>
