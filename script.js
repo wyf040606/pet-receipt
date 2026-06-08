@@ -1843,9 +1843,35 @@ function initSync() {
   const syncBtn = document.getElementById('syncSettingsBtn');
   if (!syncBtn) return;
 
-  syncBtn.title = '📦 数据备份/恢复';
+  syncBtn.title = '☁️ 云端同步';
   syncBtn.classList.add('active');
 
+  // 自动从云端拉取数据（raw.githubusercontent.com 国内可访问）
+  syncBtn.textContent = '⏳';
+  fetch(`https://raw.githubusercontent.com/wyf040606/pet-receipt/main/pets-data.json?t=${Date.now()}`, { cache: 'no-store' })
+    .then(r => r.json())
+    .then(data => {
+      if (data.pets && Array.isArray(data.pets)) {
+        // 合并：云端数据覆盖本地
+        PetStore.save(data.pets);
+        refreshPets();
+        if (data.records) localStorage.setItem('pet_receipt_records', JSON.stringify(data.records));
+        syncBtn.textContent = '✅';
+        syncBtn.title = '☁️ 已从云端同步';
+        // 刷新页面
+        if (document.getElementById('petGrid')) initIndexPage();
+        if (document.getElementById('petDetail')) initDetailPage();
+        setTimeout(() => { syncBtn.textContent = '☁️'; }, 2000);
+      } else {
+        syncBtn.textContent = '☁️';
+      }
+    })
+    .catch(() => {
+      syncBtn.textContent = '☁️';
+      // 云端暂无数据，正常
+    });
+
+  // 点击按钮：导出数据文件 + 提供上传入口
   syncBtn.addEventListener('click', () => {
     showSyncDialog();
   });
@@ -1859,77 +1885,62 @@ function showSyncDialog() {
     overlay.className = 'confirm-overlay';
     overlay.innerHTML = `
       <div class="confirm-dialog" style="text-align:left;max-width:320px;">
-        <div style="font-size:1.1rem;margin-bottom:14px;">📦 数据备份 & 恢复</div>
-        <p style="font-size:0.75rem;color:var(--ink-secondary);margin-bottom:16px;">
-          导出数据为文件，在另一台设备上导入即可互通。<br>
-          也可通过微信/QQ发送文件来传输。
+        <div style="font-size:1.1rem;margin-bottom:14px;">☁️ 跨设备同步</div>
+        <p style="font-size:0.75rem;color:var(--ink-secondary);margin-bottom:4px;">
+          打开网页会自动拉取最新数据。
         </p>
-        <div style="display:flex;flex-direction:column;gap:8px;">
-          <button class="confirm-delete" id="syncExport" style="background:var(--tag-comm-text);flex:none;padding:12px;">
-            📥 导出数据（下载文件）
+        <p style="font-size:0.75rem;color:var(--ink-secondary);margin-bottom:14px;">
+          如需手动同步，导出数据后在另一设备导入。
+        </p>
+        <div style="display:flex;gap:8px;margin-bottom:10px;">
+          <button class="confirm-delete" id="syncExport" style="background:var(--tag-comm-text);flex:1;padding:10px;font-size:0.8rem;">
+            📥 导出
           </button>
-          <button class="confirm-cancel" id="syncImportBtn" style="flex:none;padding:12px;border:1.5px solid var(--border-soft);">
-            📤 导入数据（选择文件）
+          <button class="confirm-cancel" id="syncImportBtn" style="flex:1;padding:10px;font-size:0.8rem;">
+            📤 导入
           </button>
           <input type="file" id="syncImportFile" accept=".json" style="display:none;">
         </div>
-        <button class="confirm-cancel" id="syncClose" style="margin-top:10px;width:100%;">关闭</button>
+        <button class="confirm-cancel" id="syncClose" style="width:100%;">关闭</button>
       </div>`;
     document.body.appendChild(overlay);
     overlay.addEventListener('click', e => { if (e.target === overlay) overlay.classList.remove('open'); });
+    overlay.querySelector('#syncClose').onclick = () => overlay.classList.remove('open');
+
+    overlay.querySelector('#syncExport').onclick = () => {
+      const data = {
+        pets: PetStore.getAll(),
+        records: JSON.parse(localStorage.getItem('pet_receipt_records') || '[]'),
+        exportedAt: new Date().toISOString()
+      };
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = 'pets-data.json'; a.click();
+      URL.revokeObjectURL(url);
+      Toast.show('📥 已导出，把文件发到另一设备导入', 'success');
+      overlay.classList.remove('open');
+    };
+
+    overlay.querySelector('#syncImportBtn').onclick = () => overlay.querySelector('#syncImportFile').click();
+    overlay.querySelector('#syncImportFile').onchange = (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        try {
+          const data = JSON.parse(ev.target.result);
+          if (data.pets) { PetStore.save(data.pets); refreshPets(); }
+          if (data.records) localStorage.setItem('pet_receipt_records', JSON.stringify(data.records));
+          Toast.show('📤 数据已恢复！刷新页面即可', 'success');
+          overlay.classList.remove('open');
+          if (document.getElementById('petGrid')) initIndexPage();
+          if (document.getElementById('petDetail')) initDetailPage();
+        } catch (err) { Toast.show('文件格式错误', 'error'); }
+      };
+      reader.readAsText(file);
+    };
   }
-
-  overlay.querySelector('#syncClose').onclick = () => overlay.classList.remove('open');
-
-  // 导出
-  overlay.querySelector('#syncExport').onclick = () => {
-    const data = {
-      pets: PetStore.getAll(),
-      records: JSON.parse(localStorage.getItem('pet_receipt_records') || '[]'),
-      exportedAt: new Date().toISOString()
-    };
-    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'pet-receipt-backup-' + new Date().toISOString().split('T')[0] + '.json';
-    a.click();
-    URL.revokeObjectURL(url);
-    Toast.show('📥 数据已导出！', 'success');
-    overlay.classList.remove('open');
-  };
-
-  // 导入按钮 → 触发文件选择
-  overlay.querySelector('#syncImportBtn').onclick = () => {
-    overlay.querySelector('#syncImportFile').click();
-  };
-
-  // 导入文件处理
-  overlay.querySelector('#syncImportFile').onchange = (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      try {
-        const data = JSON.parse(ev.target.result);
-        if (data.pets && Array.isArray(data.pets)) {
-          PetStore.save(data.pets);
-          refreshPets();
-        }
-        if (data.records && Array.isArray(data.records)) {
-          localStorage.setItem('pet_receipt_records', JSON.stringify(data.records));
-        }
-        Toast.show('📤 数据已恢复！', 'success');
-        overlay.classList.remove('open');
-        // 刷新页面
-        if (document.getElementById('petGrid')) initIndexPage();
-        if (document.getElementById('petDetail')) initDetailPage();
-      } catch (err) {
-        Toast.show('文件格式错误', 'error');
-      }
-    };
-    reader.readAsText(file);
-  };
 
   overlay.classList.add('open');
 }
