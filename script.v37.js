@@ -1759,22 +1759,20 @@ async function generateReceipt(pet) {
     </div>
   `;
 
-  // QR 码（用图片避免离屏Canvas渲染问题）
+  // QR 码
   const qrWrap = document.getElementById('rzQrWrap');
-  if (qrWrap && typeof QRCode !== 'undefined') {
+  if (qrWrap) {
     qrWrap.innerHTML = '';
     try {
-      const url = await QRCode.toDataURL(`https://wyf040606.github.io/pet-receipt/detail.html?id=${encodeURIComponent(pet.id)}`, {
-        width: 100, margin: 1,
-        color: { dark: '#1a1a1a', light: '#f2f2f2' }
+      new QRCode(qrWrap, {
+        text: `https://wyf040606.github.io/pet-receipt/detail.html?id=${encodeURIComponent(pet.id)}`,
+        width: 100, height: 100,
+        colorDark: '#1a1a1a', colorLight: '#f2f2f2'
       });
-      qrWrap.innerHTML = `<img src="${url}" width="100" height="100" style="display:block;">`;
     } catch (e) {
       console.error('QR失败:', e);
       qrWrap.innerHTML = `<div style="font-size:0.55rem;color:#999;">QR: ${pet.id}</div>`;
     }
-  } else if (qrWrap) {
-    qrWrap.innerHTML = `<div style="font-size:0.55rem;color:#999;">QR: ${pet.id}</div>`;
   }
 
   await new Promise(r => setTimeout(r, 600));
