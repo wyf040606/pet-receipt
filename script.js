@@ -1872,24 +1872,51 @@ function initSync() {
       syncBtn.textContent = '☁️';
     });
 
-  // 点击导出数据文件（用于跨设备同步）
+  // 点击导出（微信用复制，浏览器用下载）
   syncBtn.addEventListener('click', () => {
     const data = {
       pets: PetStore.getAll(),
       records: JSON.parse(localStorage.getItem('pet_receipt_records') || '[]'),
       exportedAt: new Date().toISOString()
     };
-    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const jsonStr = JSON.stringify(data, null, 2);
+
+    // 微信里用复制
+    if (navigator.userAgent.indexOf('MicroMessenger') > -1) {
+      showCopyDialog(jsonStr);
+      return;
+    }
+
+    // 浏览器下载文件
+    const blob = new Blob([jsonStr], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
-    a.href = url;
-    a.download = 'pets-data.json';
-    a.click();
+    a.href = url; a.download = 'pets-data.json'; a.click();
     URL.revokeObjectURL(url);
-    syncBtn.textContent = '📥';
-    syncBtn.title = '已导出 pets-data.json';
-    Toast.show('📥 数据文件已下载！发给我帮你上传云端', 'success');
-    setTimeout(() => { syncBtn.textContent = '☁️'; }, 2000);
+    Toast.show('📥 文件已下载！发给我帮你上传云端', 'success');
   });
 }
 
+
+function showCopyDialog(jsonStr) {
+  var overlay = document.getElementById('syncCopyDialog');
+  if (!overlay) {
+    overlay = document.createElement('div');
+    overlay.id = 'syncCopyDialog';
+    overlay.className = 'confirm-overlay';
+    overlay.innerHTML = '<div class="confirm-dialog" style="max-width:90vw;width:360px;text-align:left;"><div style="font-size:1rem;margin-bottom:10px;">📋 复制数据发给我</div><textarea id="syncDataText" readonly style="width:100%;height:200px;font-size:0.65rem;font-family:monospace;padding:8px;border:1px solid var(--border-soft);border-radius:var(--radius-sm);resize:none;"></textarea><div style="display:flex;gap:8px;margin-top:10px;"><button class="confirm-cancel" id="syncCopyClose" style="flex:1;">关闭</button><button class="confirm-delete" id="syncCopyBtn" style="flex:1;background:var(--tag-comm-text);">📋 一键复制</button></div></div>';
+    document.body.appendChild(overlay);
+    overlay.addEventListener('click', function(e) { if (e.target === overlay) overlay.classList.remove('open'); });
+  }
+  overlay.querySelector('#syncDataText').value = jsonStr;
+  overlay.querySelector('#syncCopyClose').onclick = function() { overlay.classList.remove('open'); };
+  overlay.querySelector('#syncCopyBtn').onclick = function() {
+    var ta = overlay.querySelector('#syncDataText');
+    ta.select();
+    try { document.execCommand('copy'); } catch(e) {}
+    try { navigator.clipboard.writeText(ta.value); } catch(e) {}
+    Toast.show('✅ 已复制！发给我帮你同步', 'success');
+    overlay.classList.remove('open');
+  };
+  overlay.classList.add('open');
+}
