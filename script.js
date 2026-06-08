@@ -1377,25 +1377,37 @@ const CheckinForm = {
 
     hint.textContent = '📍 定位中...';
 
-    // 方案1: ipapi.co (CORS支持，全球可用)
-    fetch('https://ipapi.co/json/')
-      .then(r => r.json())
-      .then(data => {
-        const parts = [];
-        if (data.city) parts.push(data.city);
-        if (data.region) parts.push(data.region);
-        if (data.country_name) parts.push(data.country_name);
-        const addr = parts.join(', ');
+    // IP 定位 - 双服务备份
+    const tryLocate = (url, parser) => {
+      fetch(url).then(r => r.json()).then(data => {
+        const addr = parser(data);
         if (addr) {
           hint.textContent = '✅ ' + (addr.length > 20 ? addr.slice(0, 20) + '…' : addr);
           if (!locInput.value.trim()) locInput.value = addr;
-        } else {
-          hint.textContent = '⚠️ 请手动输入地点';
         }
-      })
-      .catch(() => {
-        hint.textContent = '⚠️ 网络不通，请手动输入';
-      });
+      }).catch(() => {});
+    };
+
+    tryLocate('https://ipinfo.io/json', d => {
+      const parts = [];
+      if (d.city) parts.push(d.city);
+      if (d.region) parts.push(d.region);
+      if (d.country) parts.push(d.country);
+      return parts.join(', ');
+    });
+
+    // 备选
+    setTimeout(() => {
+      if (!locInput.value.trim()) {
+        tryLocate('https://ipapi.co/json/', d => {
+          const parts = [];
+          if (d.city) parts.push(d.city);
+          if (d.region) parts.push(d.region);
+          if (d.country_name) parts.push(d.country_name);
+          return parts.join(', ');
+        });
+      }
+    }, 3000);
   },
 
   _tryGPS(hint, locInput) {
