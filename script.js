@@ -1881,19 +1881,8 @@ function initSync() {
     };
     const jsonStr = JSON.stringify(data, null, 2);
 
-    // 微信里用复制
-    if (navigator.userAgent.indexOf('MicroMessenger') > -1) {
-      showCopyDialog(jsonStr);
-      return;
-    }
-
-    // 浏览器下载文件
-    const blob = new Blob([jsonStr], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url; a.download = 'pets-data.json'; a.click();
-    URL.revokeObjectURL(url);
-    Toast.show('📥 文件已下载！发给我帮你上传云端', 'success');
+    // 弹出复制窗口
+    showCopyDialog(jsonStr);
   });
 }
 
