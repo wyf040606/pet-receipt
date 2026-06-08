@@ -1853,24 +1853,38 @@ function initSync() {
   syncBtn.title = '☁️ 拉取中...';
   syncBtn.textContent = '⏳';
 
-  // 1. 自动从云端拉取（永远可用）
+  // 1. 自动从云端合并数据（云端+本地合并，不覆盖）
   fetch(RAW + '?t=' + Date.now(), { cache: 'no-store' })
     .then(r => r.ok ? r.json() : null)
     .then(cloud => {
       if (cloud && cloud.pets && cloud.pets.length > 0) {
-        PetStore.save(cloud.pets); refreshPets();
-        if (cloud.records) localStorage.setItem('pet_receipt_records', JSON.stringify(cloud.records));
+        // 合并：云端有而本地没有的 → 加入；两边都有的 → 保留本地（本地更新）
+        var localPets = PetStore.getAll();
+        var cloudMap = {};
+        cloud.pets.forEach(function(p) { cloudMap[p.id] = p; });
+        var localMap = {};
+        localPets.forEach(function(p) { localMap[p.id] = p; });
+        // 把云端有但本地没有的加进来
+        cloud.pets.forEach(function(p) {
+          if (!localMap[p.id]) { localPets.push(p); }
+        });
+        PetStore.save(localPets); refreshPets();
+        if (cloud.records) {
+          var localRecs = JSON.parse(localStorage.getItem('pet_receipt_records')||'[]');
+          var mergedRecs = localRecs.concat(cloud.records.filter(function(r){ return !localRecs.some(function(l){ return l.date===r.date && l.text===r.text; }); }));
+          localStorage.setItem('pet_receipt_records', JSON.stringify(mergedRecs));
+        }
         if (document.getElementById('petGrid')) initIndexPage();
         if (document.getElementById('petDetail')) initDetailPage();
-        syncBtn.title = '☁️ 已同步';
+        syncBtn.title = '☁️ 已合并';
         syncBtn.textContent = '✅';
-        setTimeout(() => { syncBtn.textContent = '☁️'; }, 2000);
+        setTimeout(function(){ syncBtn.textContent = '☁️'; }, 2000);
       } else {
         syncBtn.title = getToken() ? '☁️ 就绪' : '☁️ 点击设置';
         syncBtn.textContent = '☁️';
       }
     })
-    .catch(() => {
+    .catch(function() {
       syncBtn.title = '☁️ 离线';
       syncBtn.textContent = '☁️';
     });
