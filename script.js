@@ -1373,23 +1373,28 @@ const CheckinForm = {
   _tryGeolocation(overlay) {
     const hint = overlay.querySelector('#gpsHint');
     const locInput = overlay.querySelector('#checkinLocation');
+    const self = this;
 
     hint.textContent = '📍 定位中...';
 
-    // ipapi.co 支持 CORS，浏览器直接可用
+    // 方案1: ipapi.co (CORS支持，全球可用)
     fetch('https://ipapi.co/json/')
       .then(r => r.json())
       .then(data => {
-        if (data.city) {
-          const addr = [data.city, data.region, data.country_name].filter(Boolean).join(', ');
-          hint.textContent = '✅ ' + addr;
+        const parts = [];
+        if (data.city) parts.push(data.city);
+        if (data.region) parts.push(data.region);
+        if (data.country_name) parts.push(data.country_name);
+        const addr = parts.join(', ');
+        if (addr) {
+          hint.textContent = '✅ ' + (addr.length > 20 ? addr.slice(0, 20) + '…' : addr);
           if (!locInput.value.trim()) locInput.value = addr;
         } else {
-          hint.textContent = '⚠️ 请手动输入';
+          hint.textContent = '⚠️ 请手动输入地点';
         }
       })
       .catch(() => {
-        hint.textContent = '⚠️ 请手动输入';
+        hint.textContent = '⚠️ 网络不通，请手动输入';
       });
   },
 
@@ -1839,13 +1844,20 @@ function initSync() {
   });
 
   // 点击手动推送
-  syncBtn.addEventListener('click', () => {
+  syncBtn.addEventListener('click', async () => {
     syncBtn.textContent = '⏳';
-    CloudSync.syncToCloud().then(ok => {
+    try {
+      const ok = await CloudSync.syncToCloud();
       syncBtn.textContent = '☁️';
-      if (ok) Toast.show('☁️ 已同步', 'success');
-      else Toast.show('同步失败', 'error');
-    });
+      if (ok) {
+        Toast.show('☁️ 已同步', 'success');
+      } else {
+        Toast.show('同步失败，检查网络或Token权限', 'error');
+      }
+    } catch (e) {
+      syncBtn.textContent = '☁️';
+      Toast.show('同步出错: ' + (e.message || '未知错误'), 'error');
+    }
   });
 }
 

@@ -1864,11 +1864,9 @@ a { text-decoration: none; color: inherit; -webkit-tap-highlight-color: transpar
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
     scrollbar-width: none;
+    padding: 4px 0 8px;
+    /* 不显示滚动条但保留滚动能力 */
     -ms-overflow-style: none;
-    padding-bottom: 6px;
-    /* 右侧渐变提示 */
-    mask-image: linear-gradient(to right, black 85%, transparent 98%);
-    -webkit-mask-image: linear-gradient(to right, black 85%, transparent 98%);
   }
   .type-tabs::-webkit-scrollbar { display: none; }
   .breed-selector { flex: 1 1 auto; min-width: 0; }
