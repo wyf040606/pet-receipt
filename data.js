@@ -496,18 +496,29 @@ const PetStore = {
     ];
   },
 
-  /** 从 localStorage 加载 */
+  /** 从 localStorage 加载（自动合并默认示例） */
   load() {
     try {
       const raw = localStorage.getItem(this.STORAGE_KEY);
       if (raw) {
         const data = JSON.parse(raw);
-        if (Array.isArray(data) && data.length > 0) return data;
+        if (Array.isArray(data) && data.length > 0) {
+          // 自动合并默认示例（保留用户数据）
+          const defaults = this.getDefaults();
+          let changed = false;
+          defaults.forEach(dp => {
+            if (!data.some(p => p.id === dp.id)) {
+              data.push(dp);
+              changed = true;
+            }
+          });
+          if (changed) this.save(data);
+          return data;
+        }
       }
     } catch (e) {
       console.warn('PetStore: localStorage 读取失败，使用默认数据', e);
     }
-    // 无数据则写入默认值
     const defaults = this.getDefaults();
     this.save(defaults);
     return defaults;
