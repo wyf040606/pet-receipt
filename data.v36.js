@@ -158,30 +158,6 @@ const PetStore = {
   getDefaults() {
     return [
       {
-        id: 'NO.2026-CAT-00',
-        name: '点点',
-        type: 'cat',
-        breed: '狸花猫',
-        age: 3,
-        gender: '♂',
-        weight: '12斤',
-        themeColor: '#B8C5D6',
-        complementBg: '#FFFDF9',
-        avatar: '🐈',
-        photos: [],
-        coverIndex: 0,
-        hasVideo: false,
-        owner: '我',
-        date: '2026-06-08',
-        status: 'active',
-        category: 'private',
-        location: '',
-        featureTags: ['贪吃','粘人','踩奶大师'],
-        favoriteFood: '鸡胸肉',
-        personality: '活泼好动',
-        notes: '已完成驱虫'
-      },
-      {
         id: 'NO.2026-CAT-01',
         name: '小花',
         type: 'cat',
