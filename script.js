@@ -373,7 +373,7 @@ const FormManager = {
       <div class="form-group">
         <div class="photo-section-label">📸 照片 (可上传多张)</div>
         <div class="photo-upload-area" id="photoUploadArea"></div>
-        <div class="cover-hint">💡 点击照片可设为封面头像</div>
+        <div class="cover-hint">🖼️ <b>点击照片设为封面</b> — 带 ★ 橙色边框的为当前封面</div>
         <input type="file" class="photo-file-input" id="photoFileInput" accept="image/*" multiple>
       </div>
 
@@ -636,6 +636,10 @@ const FormManager = {
         badge.className = 'cover-badge';
         badge.textContent = '★';
         thumb.appendChild(badge);
+        const label = document.createElement('span');
+        label.className = 'cover-label';
+        label.textContent = '封面';
+        thumb.appendChild(label);
       }
       area.appendChild(thumb);
     });
