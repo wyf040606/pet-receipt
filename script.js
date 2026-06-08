@@ -1843,78 +1843,53 @@ function initSync() {
   const syncBtn = document.getElementById('syncSettingsBtn');
   if (!syncBtn) return;
 
-  const TOKEN = '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';
-  const API = 'https://api.github.com/repos/wyf040606/pet-receipt/contents/pets-data.json';
-  const RAW  = 'https://raw.githubusercontent.com/wyf040606/pet-receipt/main/pets-data.json';
-
+  const RAW = 'https://raw.githubusercontent.com/wyf040606/pet-receipt/main/pets-data.json';
   syncBtn.classList.add('active');
-  syncBtn.title = '☁️ 同步中...';
+  syncBtn.title = '☁️ 拉取云端数据...';
   syncBtn.textContent = '⏳';
 
-  // 1. 先从云端拉取
+  // 自动从云端拉取（raw.githubusercontent.com 国内可访问）
   fetch(RAW + '?t=' + Date.now(), { cache: 'no-store' })
     .then(r => r.ok ? r.json() : null)
-    .then(cloudData => {
-      if (cloudData && cloudData.pets) {
-        PetStore.save(cloudData.pets);
+    .then(cloud => {
+      if (cloud && cloud.pets && cloud.pets.length > 0) {
+        // 云端数据覆盖本地
+        PetStore.save(cloud.pets);
         refreshPets();
-        if (cloudData.records) localStorage.setItem('pet_receipt_records', JSON.stringify(cloudData.records));
+        if (cloud.records) localStorage.setItem('pet_receipt_records', JSON.stringify(cloud.records));
         if (document.getElementById('petGrid')) initIndexPage();
         if (document.getElementById('petDetail')) initDetailPage();
+        syncBtn.title = '☁️ 已从云端同步';
+        syncBtn.textContent = '✅';
+        setTimeout(() => { syncBtn.textContent = '☁️'; }, 2000);
+      } else {
+        syncBtn.title = '☁️ 云端暂无数据';
+        syncBtn.textContent = '☁️';
       }
-      syncBtn.textContent = '☁️';
-      syncBtn.title = '☁️ 已同步';
-      // 2. 再推送本地数据
-      pushToCloud();
     })
     .catch(() => {
+      syncBtn.title = '☁️ 云端暂不可用';
       syncBtn.textContent = '☁️';
-      syncBtn.title = '☁️ 离线';
     });
 
-  async function pushToCloud() {
-    try {
-      const data = {
-        pets: PetStore.getAll(),
-        records: JSON.parse(localStorage.getItem('pet_receipt_records') || '[]'),
-        updatedAt: new Date().toISOString()
-      };
-      const content = btoa(unescape(encodeURIComponent(JSON.stringify(data, null, 2))));
-
-      // 获取当前文件 sha
-      let sha = null;
-      try {
-        const r = await fetch(API, { headers: { Authorization: 'token ' + TOKEN } });
-        if (r.ok) { const info = await r.json(); sha = info.sha; }
-      } catch(e) {}
-
-      const body = { message: '☁️ 自动同步', content };
-      if (sha) body.sha = sha;
-
-      const r = await fetch(API, {
-        method: 'PUT',
-        headers: { Authorization: 'token ' + TOKEN, 'Content-Type': 'application/json' },
-        body: JSON.stringify(body)
-      });
-
-      if (r.ok) {
-        syncBtn.title = '☁️ 云端已同步';
-        console.log('Sync OK');
-      }
-    } catch(e) {
-      console.log('Sync push failed', e);
-    }
-  }
-
-  // 数据变更时自动推送
-  window._triggerSync = () => { pushToCloud(); };
-
-  // 点击手动同步
-  syncBtn.addEventListener('click', async () => {
-    syncBtn.textContent = '⏳';
-    await pushToCloud();
-    syncBtn.textContent = '☁️';
-    Toast.show('☁️ 已同步', 'success');
+  // 点击导出数据文件（用于跨设备同步）
+  syncBtn.addEventListener('click', () => {
+    const data = {
+      pets: PetStore.getAll(),
+      records: JSON.parse(localStorage.getItem('pet_receipt_records') || '[]'),
+      exportedAt: new Date().toISOString()
+    };
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'pets-data.json';
+    a.click();
+    URL.revokeObjectURL(url);
+    syncBtn.textContent = '📥';
+    syncBtn.title = '已导出 pets-data.json';
+    Toast.show('📥 数据文件已下载！发给我帮你上传云端', 'success');
+    setTimeout(() => { syncBtn.textContent = '☁️'; }, 2000);
   });
 }
 
