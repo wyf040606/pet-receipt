@@ -1844,48 +1844,107 @@ function initSync() {
   if (!syncBtn) return;
 
   const RAW = 'https://raw.githubusercontent.com/wyf040606/pet-receipt/main/pets-data.json';
+  const API = 'https://api.github.com/repos/wyf040606/pet-receipt/contents/pets-data.json';
+
+  function getToken() { return localStorage.getItem('gh_sync_token'); }
+  function setToken(t) { localStorage.setItem('gh_sync_token', t); }
+
   syncBtn.classList.add('active');
-  syncBtn.title = '☁️ 拉取云端数据...';
+  syncBtn.title = '☁️ 拉取中...';
   syncBtn.textContent = '⏳';
 
-  // 自动从云端拉取（raw.githubusercontent.com 国内可访问）
+  // 1. 自动从云端拉取（永远可用）
   fetch(RAW + '?t=' + Date.now(), { cache: 'no-store' })
     .then(r => r.ok ? r.json() : null)
     .then(cloud => {
       if (cloud && cloud.pets && cloud.pets.length > 0) {
-        // 云端数据覆盖本地
-        PetStore.save(cloud.pets);
-        refreshPets();
+        PetStore.save(cloud.pets); refreshPets();
         if (cloud.records) localStorage.setItem('pet_receipt_records', JSON.stringify(cloud.records));
         if (document.getElementById('petGrid')) initIndexPage();
         if (document.getElementById('petDetail')) initDetailPage();
-        syncBtn.title = '☁️ 已从云端同步';
+        syncBtn.title = '☁️ 已同步';
         syncBtn.textContent = '✅';
         setTimeout(() => { syncBtn.textContent = '☁️'; }, 2000);
       } else {
-        syncBtn.title = '☁️ 云端暂无数据';
+        syncBtn.title = getToken() ? '☁️ 就绪' : '☁️ 点击设置';
         syncBtn.textContent = '☁️';
       }
     })
     .catch(() => {
-      syncBtn.title = '☁️ 云端暂不可用';
+      syncBtn.title = '☁️ 离线';
       syncBtn.textContent = '☁️';
     });
 
-  // 点击导出（微信用复制，浏览器用下载）
-  syncBtn.addEventListener('click', () => {
-    const data = {
-      pets: PetStore.getAll(),
-      records: JSON.parse(localStorage.getItem('pet_receipt_records') || '[]'),
-      exportedAt: new Date().toISOString()
-    };
-    const jsonStr = JSON.stringify(data, null, 2);
+  // 2. 推送函数
+  async function pushToCloud() {
+    const token = getToken();
+    if (!token) return false;
+    try {
+      const data = { pets: PetStore.getAll(), records: JSON.parse(localStorage.getItem('pet_receipt_records')||'[]'), updatedAt: new Date().toISOString() };
+      const content = btoa(unescape(encodeURIComponent(JSON.stringify(data, null, 2))));
+      let sha = null;
+      try { const r = await fetch(API, { headers: { Authorization: 'token ' + token } }); if (r.ok) { const i = await r.json(); sha = i.sha; } } catch(e) {}
+      const body = { message: '☁️ 自动同步', content };
+      if (sha) body.sha = sha;
+      const r = await fetch(API, { method: 'PUT', headers: { Authorization: 'token ' + token, 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      return r.ok;
+    } catch(e) { return false; }
+  }
 
-    // 弹出复制窗口
-    showCopyDialog(jsonStr);
+  // 3. 有 Token 就自动推送
+  if (getToken()) {
+    window._triggerSync = () => { pushToCloud(); };
+  }
+
+  // 4. 点击 ☁️
+  syncBtn.addEventListener('click', () => {
+    if (getToken()) {
+      // 已有 Token → 推送
+      syncBtn.textContent = '⏳';
+      pushToCloud().then(ok => {
+        syncBtn.textContent = '☁️';
+        if (ok) Toast.show('☁️ 已同步到云端！', 'success');
+        else {
+          // API 不通 → 手动复制
+          const data = { pets: PetStore.getAll(), records: JSON.parse(localStorage.getItem('pet_receipt_records')||'[]'), exportedAt: new Date().toISOString() };
+          showCopyDialog(JSON.stringify(data, null, 2));
+        }
+      });
+    } else {
+      // 没 Token → 输入
+      showTokenDialog((token) => {
+        setToken(token);
+        window._triggerSync = () => { pushToCloud(); };
+        syncBtn.title = '☁️ 就绪（自动同步中）';
+        pushToCloud().then(ok => {
+          if (ok) Toast.show('☁️ 同步已开启！', 'success');
+          else Toast.show('API 不通，请开 VPN 后重试', 'error');
+        });
+      });
+    }
   });
 }
 
+
+function showTokenDialog(onSave) {
+  var overlay = document.getElementById('syncTokenDialog');
+  if (!overlay) {
+    overlay = document.createElement('div');
+    overlay.id = 'syncTokenDialog';
+    overlay.className = 'confirm-overlay';
+    overlay.innerHTML = '<div class="confirm-dialog" style="max-width:90vw;width:340px;text-align:left;"><div style="font-size:1.1rem;margin-bottom:10px;">🔑 输入 GitHub Token</div><p style="font-size:0.72rem;color:var(--ink-secondary);margin-bottom:10px;">Token 仅存此设备浏览器中，不会上传。</p><input class="form-input" id="tokenInput" placeholder="ghp_xxxxxxxxxxxx" style="margin-bottom:12px;font-size:0.8rem;"><div style="display:flex;gap:8px;"><button class="confirm-cancel" id="tokenCancel" style="flex:1;">取消</button><button class="confirm-delete" id="tokenSave" style="flex:1;background:var(--tag-comm-text);">保存</button></div></div>';
+    document.body.appendChild(overlay);
+    overlay.addEventListener('click', function(e) { if (e.target === overlay) overlay.classList.remove('open'); });
+  }
+  overlay.querySelector('#tokenCancel').onclick = function() { overlay.classList.remove('open'); };
+  overlay.querySelector('#tokenSave').onclick = function() {
+    var t = overlay.querySelector('#tokenInput').value.trim();
+    if (!t) { Toast.show('请输入 Token', 'error'); return; }
+    overlay.classList.remove('open');
+    onSave(t);
+  };
+  overlay.classList.add('open');
+}
 
 function showCopyDialog(jsonStr) {
   var overlay = document.getElementById('syncCopyDialog');
