@@ -518,7 +518,6 @@ const PetStore = {
     try {
       localStorage.setItem(this.STORAGE_KEY, JSON.stringify(data));
       // 触发云端同步（如果已启用）
-      if (window._triggerSync) window._triggerSync();
     } catch (e) {
       console.error('PetStore: localStorage 写入失败', e);
     }
@@ -634,119 +633,6 @@ const PostStore = {
     }
     const filtered = posts.filter(p => p.id !== postId);
     this.savePosts(petId, filtered);
-  }
-};
-
-/* ===================================================================
-   CloudSync — 跨设备云端同步 (GitHub API)
-   =================================================================== */
-const CloudSync = {
-  TOKEN_KEY: 'github_sync_token',
-  DATA_FILE: 'pets-data.json',
-  _token: null,
-  _enabled: false,
-
-  /** 设置 token 并启用同步 */
-  enable(token) {
-    this._token = token;
-    this._enabled = true;
-    localStorage.setItem(this.TOKEN_KEY, token);
-  },
-
-  /** 禁用同步 */
-  disable() {
-    this._token = null;
-    this._enabled = false;
-    localStorage.removeItem(this.TOKEN_KEY);
-  },
-
-  /** 从 localStorage 恢复 token */
-  restore() {
-    this._token = localStorage.getItem(this.TOKEN_KEY);
-    this._enabled = !!this._token;
-    return this._enabled;
-  },
-
-  /** 从云端拉取数据 */
-  async pull() {
-    if (!this._enabled || !this._token) return null;
-    try {
-      const resp = await fetch(
-        `https://raw.githubusercontent.com/wyf040606/pet-receipt/main/${this.DATA_FILE}?t=${Date.now()}`,
-        { cache: 'no-store' }
-      );
-      if (!resp.ok) return null;
-      return await resp.json();
-    } catch (e) {
-      console.warn('CloudSync pull failed:', e);
-      return null;
-    }
-  },
-
-  /** 推送数据到云端 */
-  async push(data) {
-    if (!this._enabled || !this._token) return false;
-    try {
-      // 先获取当前文件的 sha
-      let sha = null;
-      try {
-        const getResp = await fetch(
-          `https://api.github.com/repos/wyf040606/pet-receipt/contents/${this.DATA_FILE}`,
-          { headers: { Authorization: `token ${this._token}` } }
-        );
-        if (getResp.ok) {
-          const info = await getResp.json();
-          sha = info.sha;
-        }
-      } catch (e) { /* 文件不存在，sha 为 null */ }
-
-      const content = btoa(unescape(encodeURIComponent(JSON.stringify(data, null, 2))));
-      const body = {
-        message: '☁️ 自动同步数据',
-        content: content
-      };
-      if (sha) body.sha = sha;
-
-      const putResp = await fetch(
-        `https://api.github.com/repos/wyf040606/pet-receipt/contents/${this.DATA_FILE}`,
-        {
-          method: 'PUT',
-          headers: {
-            Authorization: `token ${this._token}`,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify(body)
-        }
-      );
-      return putResp.ok;
-    } catch (e) {
-      console.warn('CloudSync push failed:', e);
-      return false;
-    }
-  },
-
-  /** 拉取云端数据并合并到本地（云端优先） */
-  async syncFromCloud() {
-    const cloudData = await this.pull();
-    if (!cloudData) return;
-    // 云端数据覆盖本地
-    if (cloudData.pets && Array.isArray(cloudData.pets)) {
-      PetStore.save(cloudData.pets);
-      refreshPets();
-    }
-    if (cloudData.records && Array.isArray(cloudData.records)) {
-      localStorage.setItem('pet_receipt_records', JSON.stringify(cloudData.records));
-    }
-  },
-
-  /** 把本地数据推上云端 */
-  async syncToCloud() {
-    const data = {
-      pets: PetStore.getAll(),
-      records: JSON.parse(localStorage.getItem('pet_receipt_records') || '[]'),
-      updatedAt: new Date().toISOString()
-    };
-    return await this.push(data);
   }
 };
 
