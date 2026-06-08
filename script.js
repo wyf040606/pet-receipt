@@ -1844,7 +1844,7 @@ function initSync() {
   if (!syncBtn) return;
 
   // 自动启用同步（Token 已内置）
-  CloudSync.enable('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');
+  CloudSync.enable('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');
   syncBtn.classList.add('active');
   syncBtn.title = '☁️ 云端同步已开启';
 
