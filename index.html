@@ -8,7 +8,7 @@
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta name="theme-color" content="#FFF9F5">
   <title>宠物小票 · 档案夹 | PET RECEIPT</title>
-  <link rel="stylesheet" href="style.v34.css">
+  <link rel="stylesheet" href="style.v35.css">
 </head>
 <body>
   <!-- 卡夹翻开转场遮罩 -->
@@ -39,14 +39,15 @@
 
     <!-- ===== 底部 ===== -->
     <footer class="app-footer">
+      <button class="sync-btn" id="syncSettingsBtn" title="☁️" style="display:none;">☁️</button>
       <span class="barcode-text">NO.2026-PET-ARCHIVE-001</span>
       <br><a href="javascript:var d=PetStore.getDefaults();var cur=PetStore.getAll();d.forEach(function(p){if(!cur.some(function(c){return c.id===p.id}))cur.push(p)});PetStore.save(cur);refreshPets();location.reload();" style="font-size:0.65rem;color:var(--ink-light);">🔄 添加默认示例</a>
     </footer>
   </div>
 
   <!-- 数据层 -->
-  <script src="data.v34.js"></script>
+  <script src="data.v35.js"></script>
   <!-- 核心引擎 -->
-  <script src="script.v34.js"></script>
+  <script src="script.v35.js"></script>
 </body>
 </html>
